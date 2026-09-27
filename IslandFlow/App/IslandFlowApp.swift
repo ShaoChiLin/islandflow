@@ -1,0 +1,258 @@
+import SwiftUI
+import SwiftData
+
+@main
+struct IslandFlowApp: App {
+    let container: ModelContainer
+    @State private var session = Session()
+
+    init() {
+        do {
+            container = try AppSchema.makeContainer()
+        } catch {
+            // 資料結構改過而舊資料打不開時，展示用 App 直接改用記憶體資料庫，至少能開起來
+            container = try! AppSchema.makeContainer(inMemory: true)
+        }
+        let context = container.mainContext
+        #if DEBUG
+        if LaunchArgs.has("reset-demo") { SeedData.reset(context) }
+        #endif
+        SeedData.seedIfNeeded(context)
+        #if DEBUG
+        if let stage = LaunchArgs.value("demo-progress") { Self.fastForward(context, to: stage) }
+        #endif
+    }
+
+    var body: some Scene {
+        WindowGroup {
+            RootView()
+                .environment(session)
+                .debugLayoutWidth()
+        }
+        .modelContainer(container)
+    }
+
+    #if DEBUG
+    /// 排練、截圖、UI 測試時直接跳到流程中段；走的是和畫面上完全相同的 FlowService 流程
+    @MainActor
+    private static func fastForward(_ context: ModelContext, to stage: String) {
+        let order = ["joined", "departed", "completed", "token", "redeemed"]
+        guard let level = order.firstIndex(of: stage) else { return }
+        let service = FlowService(context: context)
+        guard let m = service.mission("M-A"), let (p, _) = try? service.join(mission: m, user: "t-demo") else { return }
+        if level >= 1 {
+            _ = try? service.checkIn(raw: service.currentStationToken(trip: m.tripID, stop: m.startStopSeq), participation: p, method: "demo")
+        }
+        if level >= 2 {
+            _ = try? service.checkIn(raw: service.currentStationToken(trip: m.tripID, stop: m.endStopSeq), participation: p, method: "demo")
+        }
+        if level >= 3, let item = service.item("r-veg"), let tok = try? service.createRedeemToken(user: "t-demo", item: item) {
+            if level >= 4 {
+                _ = try? service.confirm(tokenID: tok.id, merchantID: "m-lake", idempotencyKey: UUID().uuidString)
+            }
+        }
+    }
+    #endif
+}
+
+enum LaunchArgs {
+    static func has(_ flag: String) -> Bool { ProcessInfo.processInfo.arguments.contains(flag) }
+
+    static func value(_ key: String) -> String? {
+        #if DEBUG
+        return ProcessInfo.processInfo.arguments.first { $0.hasPrefix(key + "=") }.map { String($0.dropFirst(key.count + 1)) }
+        #else
+        return nil
+        #endif
+    }
+
+    static var startTab: Int { value("tab").flatMap(Int.init) ?? 0 }
+}
+
+private extension View {
+    /// `layout-width=320`：iOS 17 已沒有 320pt 寬的機型，用這個把整個畫面壓窄來檢查最小寬度版面
+    @ViewBuilder func debugLayoutWidth() -> some View {
+        if let w = LaunchArgs.value("layout-width").flatMap(Double.init) {
+            self.frame(width: w).frame(maxWidth: .infinity).background(Color.gray)
+        } else {
+            self
+        }
+    }
+}
+
+struct RootView: View {
+    @Environment(Session.self) private var session
+
+    var body: some View {
+        Group {
+            if !session.hasOnboarded {
+                WelcomeView()
+            } else {
+                switch session.account.role {
+                case .traveler: TravelerRoot(account: session.account)
+                case .merchant: MerchantRoot(account: session.account)
+                case .admin: AdminRoot(account: session.account)
+                }
+            }
+        }
+        .id("\(session.account.id)-\(session.hasOnboarded)")
+    }
+}
+
+// MARK: 首次進入
+
+struct WelcomeView: View {
+    @Environment(Session.self) private var session
+    @State private var showDemoMenu = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.xl) {
+            Spacer()
+            ZStack {
+                Circle().fill(Color.brand.opacity(0.12)).frame(width: 132, height: 132)
+                Image(systemName: "leaf.circle.fill")
+                    .font(.system(size: 76))
+                    .foregroundStyle(Color.coin)
+            }
+            .frame(maxWidth: .infinity)
+            // 長按圖示打開展示選單：評審展示時切商家／管理者用，一般旅客不會看到
+            .onLongPressGesture(minimumDuration: 0.8) { showDemoMenu = true }
+            .accessibilityAddTraits(.isImage)
+            .accessibilityLabel("島流旅綠幣")
+
+            VStack(alignment: .leading, spacing: Space.m) {
+                Text("島流旅綠幣").font(.subheadline.weight(.semibold)).foregroundStyle(Color.brand)
+                Text("搭台灣好行\n完成低碳任務\n沿線兌換在地好物")
+                    .font(.largeTitle.bold())
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            VStack(alignment: .leading, spacing: Space.m) {
+                WelcomeStep(icon: "bus.fill", text: "選一班比較空的車，獎勵更多")
+                WelcomeStep(icon: "qrcode.viewfinder", text: "上車、下車各掃一次站牌")
+                WelcomeStep(icon: "basket.fill", text: "到沿線小農店家換好物")
+            }
+            Spacer()
+            Button("開始探索") {
+                if session.account.role != .traveler { session.account = Session.defaultTraveler }
+                session.hasOnboarded = true
+            }
+                .buttonStyle(.primary)
+                .accessibilityIdentifier("welcome-start")
+        }
+        .padding(.horizontal, Space.xl)
+        .padding(.bottom, Space.l)
+        .background(Color.canvas)
+        .sheet(isPresented: $showDemoMenu) { DemoMenuSheet() }
+    }
+}
+
+private struct WelcomeStep: View {
+    var icon: String
+    var text: String
+
+    var body: some View {
+        HStack(spacing: Space.m) {
+            Image(systemName: icon)
+                .font(.body.weight(.semibold))
+                .foregroundStyle(Color.brand)
+                .frame(width: 36, height: 36)
+                .background(Color.brand.opacity(0.12), in: Circle())
+            Text(text).font(.body)
+        }
+    }
+}
+
+// MARK: 展示選單（競賽展示用）
+
+/// 商家、管理者頁面右上角的按鈕。旅客端沒有這顆，改用長按品牌圖示打開。
+struct AccountMenu: View {
+    @State private var show = false
+
+    var body: some View {
+        Button {
+            show = true
+        } label: {
+            Image(systemName: "theatermasks").accessibilityLabel("展示選單")
+        }
+        .sheet(isPresented: $show) { DemoMenuSheet() }
+    }
+}
+
+struct DemoMenuSheet: View {
+    @Environment(Session.self) private var session
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var confirmReset = false
+
+    var body: some View {
+        @Bindable var session = session
+        NavigationStack {
+            List {
+                Section {
+                    Label("目前：\(session.account.role.label)・\(session.account.name)", systemImage: session.account.symbol)
+                } footer: {
+                    Text("這個選單只給競賽展示使用，一般旅客看不到。")
+                }
+                ForEach([Role.traveler, .merchant, .admin], id: \.self) { role in
+                    Section("切換為\(role.label)") {
+                        ForEach(DemoAccounts.all.filter { $0.role == role }) { a in
+                            Button {
+                                session.hasOnboarded = true
+                                session.account = a
+                                dismiss()
+                            } label: {
+                                HStack {
+                                    Label {
+                                        VStack(alignment: .leading) {
+                                            Text(a.name).foregroundStyle(.primary)
+                                            Text(a.subtitle).font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    } icon: {
+                                        Image(systemName: a.symbol)
+                                    }
+                                    Spacer()
+                                    if a.id == session.account.id {
+                                        Image(systemName: "checkmark").foregroundStyle(Color.brand)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                Section("展示控制") {
+                    NavigationLink {
+                        TripLoadEditor().navigationTitle("班次載客率")
+                    } label: {
+                        Label("調整班次預估載客率", systemImage: "slider.horizontal.3")
+                    }
+                    Toggle(isOn: $session.showDemoTools) {
+                        Label("掃碼頁顯示「模擬掃描」", systemImage: "qrcode")
+                    }
+                    Button {
+                        session.hasOnboarded = false
+                        dismiss()
+                    } label: {
+                        Label("重新顯示歡迎頁", systemImage: "sparkles")
+                    }
+                    Button(role: .destructive) {
+                        confirmReset = true
+                    } label: {
+                        Label("重置示範資料", systemImage: "arrow.counterclockwise")
+                    }
+                }
+            }
+            .navigationTitle("展示選單")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) { Button("完成") { dismiss() } }
+            }
+            .confirmationDialog("清除所有展示過程產生的紀錄，回到初始示範資料？", isPresented: $confirmReset, titleVisibility: .visible) {
+                Button("重置", role: .destructive) {
+                    SeedData.reset(context)
+                    dismiss()
+                }
+            }
+        }
+    }
+}
