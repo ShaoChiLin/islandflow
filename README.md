@@ -128,7 +128,8 @@ UI 測試可用環境變數加旗標：`TEST_RUNNER_EXTRA_ARGS="layout-width=320
 
 ## 版本控制
 
-本機 git 儲存庫（`main` 分支），尚未設定遠端。`build/` 已排除。
+GitHub 私人儲存庫：https://github.com/ShaoChiLin/islandflow （`main` 分支）。`build/` 已排除。
+隊友要看得先到 repo 的 Settings → Collaborators 邀請。
 
 ## 已知限制（公開展示前要知道）
 
