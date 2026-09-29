@@ -74,7 +74,8 @@ struct HSpacer: View {
     }
 }
 
-/// 旅客看的是「坐起來舒不舒服」，不是載客率百分比；百分比只放詳情的展開區與管理端
+/// 旅客看的是「坐起來舒不舒服」，不是載客率百分比；百分比只放詳情的展開區與管理端。
+/// 舒適度來自示範載客率，所以標籤本身一定帶「預估」字樣（改版方針 P0-A，取代 D14 首頁不標示的做法）
 extension LoadTier {
     var comfortLabel: String {
         switch self {
@@ -104,15 +105,36 @@ struct ComfortChip: View {
         case .mid: (Color.secondary, Color.secondary.opacity(0.12))
         case .high: (Color.orange, Color.orange.opacity(0.14))
         }
-        // 大字級時完整版「空位多・較舒適」單獨就比卡片寬，改用短版
-        Label(short || typeSize.isAccessibilitySize ? tier.comfortShort : tier.comfortLabel, systemImage: tier.symbol)
+        // 大字級時完整版單獨就比卡片寬，改用短版
+        let compact = short || typeSize.isAccessibilitySize
+        Label(compact ? "\(tier.comfortShort)・預估" : "\(tier.comfortShort)・示範預估", systemImage: tier.symbol)
             .font(.caption.weight(.semibold))
             .padding(.horizontal, Space.s).padding(.vertical, Space.xs)
             .background(bg, in: Capsule())
             .foregroundStyle(fg)
             .lineLimit(1)
             .fixedSize()
+            .accessibilityLabel("示範預估：\(tier.comfortLabel)")
     }
+}
+
+/// 探索頁常駐的一行提示：不展開任何細節也看得出哪些是展示資料
+struct DemoModeNotice: View {
+    var body: some View {
+        Label("示範模式：班次、舒適度與店家為展示資料；站點為官方開放資料", systemImage: "info.circle")
+            .font(.caption)
+            .foregroundStyle(Color.orange)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("demo-mode-notice")
+    }
+}
+
+extension Merchant {
+    /// 虛構店家一律標示；isPartner 只代表示範資料裡「可兌換」，不代表真的談好合作
+    var demoTag: String? { isFictional ? "示範店家・尚未提供真實兌換" : nil }
+
+    /// 種子營業時間沒有核實來源，不能拿來判斷「現在營業中」
+    var hoursNote: String { isFictional ? "示範時段 \(hours)・營業資訊待確認" : "營業 \(hours)・營業資訊待確認" }
 }
 
 extension Color {

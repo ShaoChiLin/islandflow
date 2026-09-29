@@ -11,6 +11,8 @@ struct MyTripsView: View {
     @Query private var missions: [Mission]
     @Query private var trips: [BusTrip]
     @State private var scanning: Participation?
+    @State private var cancelling: Participation?
+    @State private var cancelError: String?
 
     init(account: DemoAccount) {
         self.account = account
@@ -66,6 +68,28 @@ struct MyTripsView: View {
                     CheckinSheet(participation: p, mission: m, account: account)
                 }
             }
+            .confirmationDialog("取消這個任務？", isPresented: Binding(get: { cancelling != nil }, set: { if !$0 { cancelling = nil } }),
+                                titleVisibility: .visible, presenting: cancelling) { p in
+                Button("取消任務", role: .destructive) { leave(p, service: service) }
+                    .accessibilityIdentifier("trip-cancel-confirm")
+                Button("保留", role: .cancel) {}
+            } message: { p in
+                Text("名額會釋放給其他人，鎖定的 \(p.rewardAmount) 枚不會發放。之後可以再加入，但獎勵依當時班次重新計算。")
+            }
+            .alert("無法取消", isPresented: Binding(get: { cancelError != nil }, set: { if !$0 { cancelError = nil } })) {
+                Button("好") {}
+            } message: {
+                Text(cancelError ?? "")
+            }
+        }
+    }
+
+    private func leave(_ p: Participation, service: FlowService) {
+        do {
+            try service.leave(p, user: account.id)
+            UINotificationFeedbackGenerator().notificationOccurred(.success)
+        } catch {
+            cancelError = error.localizedDescription
         }
     }
 
@@ -93,22 +117,42 @@ struct MyTripsView: View {
             NavigationLink(value: m.id) {
                 Text("查看任務詳情").font(.subheadline).frame(maxWidth: .infinity)
             }
+            if p.statusValue == .joined {
+                Button("取消任務", role: .destructive) { cancelling = p }
+                    .font(.subheadline)
+                    .frame(maxWidth: .infinity, minHeight: 44)
+                    .accessibilityIdentifier("trip-cancel")
+            } else {
+                Text("已完成出發驗證，任務不能取消；抵達後記得掃到站碼。")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+            }
         }
     }
 
     private func doneRow(_ p: Participation, _ m: Mission, service: FlowService) -> some View {
-        HStack(spacing: Space.m) {
-            Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(Color.brand)
-            VStack(alignment: .leading, spacing: 2) {
-                Text(m.title).font(.subheadline.weight(.medium))
-                Text(p.completedAt.map(Fmt.dateTime) ?? "").font(.caption).foregroundStyle(.secondary)
+        VStack(alignment: .leading, spacing: Space.s) {
+            HStack(spacing: Space.m) {
+                Image(systemName: "checkmark.circle.fill").font(.title2).foregroundStyle(Color.brand)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(m.title).font(.subheadline.weight(.medium))
+                    Text(p.completedAt.map(Fmt.dateTime) ?? "").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                VStack(alignment: .trailing, spacing: Space.xs) {
+                    CoinLabel(amount: p.rewardAmount, font: .subheadline, showSign: true)
+                    Button("去兌換") { router.goRedeem(stop: m.endStopSeq) }
+                        .font(.caption.weight(.semibold))
+                }
             }
-            Spacer()
-            VStack(alignment: .trailing, spacing: Space.xs) {
-                CoinLabel(amount: p.rewardAmount, font: .subheadline, showSign: true)
-                Button("去兌換") { router.goRedeem(stop: m.endStopSeq) }
+            NavigationLink {
+                ReturnTripView(mission: m)
+            } label: {
+                Label("回程資訊：從\(service.stopName(m.endStopSeq))回\(service.stopName(m.startStopSeq))", systemImage: "arrow.uturn.backward")
                     .font(.caption.weight(.semibold))
             }
+            .accessibilityIdentifier("trip-return-info")
         }
         .padding(Space.m)
         .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))

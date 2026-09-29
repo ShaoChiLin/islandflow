@@ -24,6 +24,13 @@ struct CheckinSheet: View {
 
     private var service: FlowService { FlowService(context: context) }
 
+    /// 驗證成功後參加紀錄已經進到下一階段；標題要跟著畫面上的結果走，
+    /// 不然出發成功的畫面會頂著「到站驗證」的標題（K22）
+    private var title: String {
+        if case .success(let r) = outcome { return "\(r.stage.label)完成" }
+        return service.expectedStage(participation)?.label ?? "驗證完成"
+    }
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -45,7 +52,7 @@ struct CheckinSheet: View {
                 }
                 .padding(Space.l)
             }
-            .navigationTitle(service.expectedStage(participation)?.label ?? "驗證完成")
+            .navigationTitle(title)
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) { Button("關閉") { dismiss() } }
@@ -208,7 +215,7 @@ struct SuccessPanel: View {
                 Text("已獲得 \(result.coinsAwarded ?? reward) 枚")
                     .font(.largeTitle.bold())
                     .accessibilityIdentifier("checkin-reward")
-                Text("\(stopName)站附近可兌換 \(nearby.filter { $0.stock > 0 }.count) 項")
+                Text("\(stopName)站附近有 \(nearby.filter { $0.stock > 0 }.count) 項兌換品")
                     .font(.headline).foregroundStyle(.secondary)
                 VStack(spacing: Space.s) {
                     ForEach(nearby) { it in
@@ -219,7 +226,9 @@ struct SuccessPanel: View {
                             HStack {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(it.name).font(.subheadline.weight(.semibold)).foregroundStyle(.primary)
-                                    Text(service.merchant(it.merchantID)?.name ?? "").font(.caption).foregroundStyle(.secondary)
+                                    let m = service.merchant(it.merchantID)
+                                    Text([m?.name, m?.isFictional == true ? "示範店家" : nil].compactMap { $0 }.joined(separator: "・"))
+                                        .font(.caption).foregroundStyle(.secondary)
                                 }
                                 Spacer()
                                 VStack(alignment: .trailing, spacing: 2) {
@@ -237,6 +246,16 @@ struct SuccessPanel: View {
                 }
                 Button("查看所有兌換品") { onContinue(nil) }
                     .buttonStyle(.secondaryAction)
+                // 以下放在兌換品之後，不影響「完成後兩次點擊拿到 QR」
+                EmissionReceiptCard(mission: mission)
+                NavigationLink {
+                    ReturnTripView(mission: mission)
+                } label: {
+                    Label("查看回程", systemImage: "arrow.uturn.backward")
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity, minHeight: 44)
+                }
+                .accessibilityIdentifier("completion-return-trip")
             } else {
                 Text("出發驗證成功").font(.title.bold())
                 Text("抵達\(service.stopName(mission.endStopSeq))後，再掃一次站牌就能領 \(reward) 枚")

@@ -40,7 +40,7 @@ final class BusTrip {
     var routeCode: String
     /// "10:40"，每日固定班次
     var departure: String
-    /// 0~1.6；超過 1 代表站位（北投竹子湖線平日月均其實超過 120%）
+    /// 0~1.6 的示範值；超過 1 代表預估有站位。月搭乘率（172679）超過 100% 不等於單班超載，不能拿來推算這個值
     var predictedLoad: Double
     var isOffPeak: Bool
     var isCancelled: Bool

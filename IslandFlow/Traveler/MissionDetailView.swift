@@ -43,9 +43,11 @@ struct MissionDetailView: View {
                 VStack(alignment: .leading, spacing: Space.s) {
                     Text(mission.title).font(.subheadline.weight(.semibold)).foregroundStyle(Color.brand)
                     Text("前往\(to)").font(.largeTitle.bold())
+                    Label("\(trip?.departure ?? "--:--") 從\(from)出發", systemImage: "clock")
+                        .font(.subheadline)
+                    // 標籤另起一排：和時間擠同一排會把站名從中間折行
                     AdaptiveStack {
-                        Label("\(trip?.departure ?? "--:--") 從\(from)出發", systemImage: "clock")
-                            .font(.subheadline)
+                        DemoBadge(text: "示範班次")
                         ComfortChip(tier: tier, short: true)
                     }
                     Text(mission.subtitle).font(.subheadline).foregroundStyle(.secondary)
@@ -56,9 +58,18 @@ struct MissionDetailView: View {
                         HStack(alignment: .center) { coinBlock(result.coins); Spacer(minLength: Space.m); nearbyBlock(to, redeemable.count, alignTrailing: true) }
                         VStack(alignment: .leading, spacing: Space.s) { coinBlock(result.coins); nearbyBlock(to, redeemable.count, alignTrailing: false) }
                     }
+                    Divider()
+                    let emission = service.segmentEmission(mission)
+                    Label(EmissionText.summary(km: emission.km, kg: emission.kg) + "（示範係數）", systemImage: "leaf")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .accessibilityIdentifier("mission-emission-summary")
                 }
 
                 stepsCard(trip: trip, from: from, to: to)
+
+                BoardingInfoCard(from: service.stop(mission.startStopSeq), departure: trip?.departure)
 
                 if let error { ErrorBanner(message: error) }
                 if let notice {
@@ -97,7 +108,7 @@ struct MissionDetailView: View {
     private func nearbyBlock(_ to: String, _ count: Int, alignTrailing: Bool) -> some View {
         VStack(alignment: alignTrailing ? .trailing : .leading, spacing: 2) {
             Text("\(to)站附近").font(.caption).foregroundStyle(.secondary)
-            Text(count > 0 ? "可兌換 \(count) 項" : "兌換品已換完").font(.headline)
+            Text(count > 0 ? "兌換品 \(count) 項" : "兌換品已換完").font(.headline)
         }
     }
 
@@ -150,6 +161,11 @@ struct MissionDetailView: View {
                 .padding(.top, Space.s)
             }
             Divider()
+            DisclosureGroup("交通排放怎麼估") {
+                EmissionMethodNote(factor: service.busEmissionFactor())
+                    .padding(.top, Space.s)
+            }
+            Divider()
             DisclosureGroup("可兌換品項") {
                 VStack(alignment: .leading, spacing: Space.xs) {
                     ForEach(redeemable) { it in
@@ -160,6 +176,10 @@ struct MissionDetailView: View {
                         }
                     }
                     if redeemable.isEmpty { Text("今日已換完").foregroundStyle(.secondary) }
+                    if redeemable.contains(where: { service.merchant($0.merchantID)?.isFictional == true }) {
+                        Text("以上為示範店家，尚未提供真實兌換；營業資訊待確認。")
+                            .font(.caption).foregroundStyle(.secondary)
+                    }
                 }
                 .font(.subheadline)
                 .padding(.top, Space.s)
