@@ -139,6 +139,25 @@ struct ExploreView: View {
                             }
                         }
                     }
+                    // 放在班次比較之後，不擠掉 390pt 一屏看到兩班的版面
+                    NavigationLink {
+                        RouteCatalogListView()
+                    } label: {
+                        HStack(spacing: Space.m) {
+                            Image(systemName: "point.topleft.down.to.point.bottomright.curvepath")
+                                .foregroundStyle(Color.brand)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("查看其他台灣好行路線").font(.subheadline.weight(.semibold))
+                                Text("站點與站序・目前只有北投竹子湖線有任務").font(.caption).foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "chevron.right").font(.caption).foregroundStyle(.tertiary)
+                        }
+                        .padding(Space.m)
+                        .background(Color.surface, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityIdentifier("route-catalog-entry")
                     if options.isEmpty {
                         ContentUnavailableView("今天沒有任務", systemImage: "bus", description: Text("晚點再回來看看"))
                     } else if best == nil {

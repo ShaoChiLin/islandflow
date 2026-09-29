@@ -121,6 +121,25 @@ final class TravelerFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["還沒有行程"].waitForExistence(timeout: 5))
     }
 
+    /// 唯讀路線目錄：三條樣本路線可切換、去回程分開，沒有任務的路線要明講
+    func testRouteCatalogShowsReadOnlyRoutes() {
+        let app = launch(["account=t-demo", "reset-demo", "demo-time=09:30"])
+        let entry = app.buttons["route-catalog-entry"]
+        XCTAssertTrue(entry.waitForExistence(timeout: 5))
+        entry.tap()
+        let shishan = app.buttons["catalog-route-shishan"]
+        XCTAssertTrue(shishan.waitForExistence(timeout: 5))
+        XCTAssertTrue(app.buttons["catalog-route-btz"].exists)
+        XCTAssertTrue(app.buttons["catalog-route-nanzhuang"].exists)
+        snap("10-路線目錄")
+        shishan.tap()
+        XCTAssertTrue(app.staticTexts["可查路線・目前無旅綠幣任務"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.staticTexts["去程 15 站（依官方站序）"].waitForExistence(timeout: 5))
+        app.buttons["回程"].tap()
+        XCTAssertTrue(app.staticTexts["回程 15 站（依官方站序）"].waitForExistence(timeout: 5))
+        snap("11-路線詳情-回程")
+    }
+
     /// 第一次打開：旅客語言的歡迎頁，只有「開始探索」
     func testWelcomeLeadsToExplore() {
         let app = launch(["show-welcome", "reset-demo"])

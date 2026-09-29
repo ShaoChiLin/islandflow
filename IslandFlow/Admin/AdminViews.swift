@@ -304,6 +304,14 @@ struct TripsView: View {
                     }
                 }
                 Section {
+                    NavigationLink("路線目錄匯入") { RouteImportView() }
+                    NavigationLink("預覽旅客端路線目錄") { RouteCatalogListView() }
+                } header: {
+                    HStack { Text("全台路線（唯讀）"); OpenDataBadge(text: "開放資料 93967") }
+                } footer: {
+                    Text("唯讀目錄獨立存放，不改任務用的站點、班次與帳本。")
+                }
+                Section {
                     RidershipChart()
                 } header: {
                     HStack { Text("北投竹子湖線 115 年月搭乘率"); OpenDataBadge() }
