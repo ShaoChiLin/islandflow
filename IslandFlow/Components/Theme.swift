@@ -150,6 +150,22 @@ extension Color {
     })
 }
 
+/// 旅綠品牌標誌。圖檔本身是滿版方形（App 圖示同一張），畫面上自己套 iOS 圖示的連續圓角
+struct BrandLogo: View {
+    var size: CGFloat
+    /// 旁邊已經有「旅綠」字樣時當裝飾，讀螢幕器略過
+    var decorative = true
+
+    var body: some View {
+        Image("BrandLogo")
+            .resizable()
+            .interpolation(.high)
+            .frame(width: size, height: size)
+            .clipShape(RoundedRectangle(cornerRadius: size * 0.2237, style: .continuous))
+            .accessibilityHidden(decorative)
+    }
+}
+
 enum Fmt {
     static func pct(_ v: Double) -> String { "\(Int((v * 100).rounded()))%" }
     static func pct(_ v: Double?) -> String { v.map { pct($0) } ?? "—" }

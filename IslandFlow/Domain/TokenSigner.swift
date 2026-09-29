@@ -26,7 +26,7 @@ enum TokenError: LocalizedError, Equatable {
 
     var errorDescription: String? {
         switch self {
-        case .malformed: "無法辨識這個二維碼，請確認掃的是島流旅綠幣的碼"
+        case .malformed: "無法辨識這個二維碼，請確認掃的是旅綠的碼"
         case .badSignature: "二維碼簽章不符，可能是偽造或被竄改過的碼"
         case .wrongPurpose: "這不是這個步驟要掃的碼"
         case .expired: "這個碼已過期，請掃描畫面上最新的碼"

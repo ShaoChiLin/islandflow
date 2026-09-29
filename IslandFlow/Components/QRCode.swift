@@ -40,7 +40,7 @@ struct QRScannerView: View {
                 ScannerRepresentable(onCode: onCode)
                     .overlay(RoundedRectangle(cornerRadius: 16).strokeBorder(.white.opacity(0.8), lineWidth: 2).padding(40))
             } else {
-                placeholder("需要相機權限", "到「設定」允許島流旅綠幣使用相機")
+                placeholder("需要相機權限", "到「設定」允許旅綠使用相機")
                     .task {
                         authorized = await AVCaptureDevice.requestAccess(for: .video)
                     }
