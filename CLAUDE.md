@@ -24,23 +24,29 @@ innoserve 黑客松概念驗證 App。規格在上一層的 `實作規格.md`（
 
 ## 架構
 
-- `Domain/`：純邏輯，不碰 SwiftData，全部有單元測試（`RewardEngine`、`TokenSigner`、`DashboardMetrics`、`Geo`/`CarbonEstimator`、`OpenData`）
+- `Domain/`：純邏輯，不碰 SwiftData，全部有單元測試（`RewardEngine`、`TokenSigner`、`DashboardMetrics`、`Geo`/`CarbonEstimator`/`TransportEmission`、`OpenData`、`TripAvailability`、`CSV`、`RouteCatalog`）
+- 唯讀路線目錄（`RouteCatalog`＋`Services/RouteCatalogStore`）存成 Application Support 的 JSON，**不寫進 SwiftData／`RouteStop`**；匯入路線不等於開任務。全台 CSV 一律用 `CSV.parse`，不要用 `OpenData.csvRows` 的 `split(",")`
+- 新路線要先在 `RouteCatalog.localIDs` 配本地穩定 ID；錯誤座標與重複站序保留原值、不自動修正
 - `Services/FlowService`：**所有會改資料的動作只能經過這裡**（加入、驗證、入帳、產生兌換碼、核銷）。畫面不直接寫 `LedgerEntry`／`Checkin`／`Redemption`
 - 餘額永遠由 `LedgerEntry` 加總，沒有餘額欄位
 - SwiftData 的 `@Attribute(.unique)` 遇到重複是**覆寫**不是丟錯，所以拒絕重複要靠 FlowService 先查再寫
 - 核銷用 `context.transaction`；冪等鍵在商家開啟確認畫面時產生
 - 模擬資料一律 `isSimulated = true`，管理端畫面上要有 `DemoBadge`
-- 旅客端分三頁（探索／行程／綠幣），依 `../Claude_Code_遊客端UX改版方針.md`：旅客畫面不放資料集編號、政策指標、展示帳號；商家與管理者只從隱藏的展示選單進入
+- 旅客端分三頁（探索／行程／綠幣），依 `../Claude_Code_遊客端UX改版方針.md`（2026-09-29 版）：旅客畫面不放資料集編號、政策指標、展示帳號；商家與管理者只從隱藏的展示選單進入；不要加第四個分頁
 - 旅客端用 `Theme.swift` 的 `Space`／`Radius`／`.primary` 按鈕與 `ComfortChip`；有標籤或金額的橫排要用 `AdaptiveStack`，大字級才不會撐版
 - UI 測試靠 `accessibilityIdentifier` 找元件，改畫面別刪；改完旅客畫面要跑 `IslandFlowUITests`
 
 ## 慣例
 
 - 註解用繁體中文，只寫「為什麼」
-- 模擬、估算的數字要標「示範資料」（規格書硬性要求）。例外：旅客首頁依改版方針不放標籤，精確載客率只出現在任務詳情展開區並在那裡標示（開發筆記 D14）
+- 模擬、估算的數字要標示範（規格書硬性要求）。旅客首頁常駐 `DemoModeNotice`，班次標「示範班次」、`ComfortChip` 自帶「預估」、虛構店家用 `Merchant.demoTag`；D14「首頁不放標籤」已被 D19 取代
+- 店家營業時間沒有核實來源，不能判斷「現在營業中」；兌換狀態只寫「點數足夠」
+- 減碳：旅客端只顯示實際搭車估算（`TransportEmission`），沒有自填基準前不算減碳量；差值保留正負、缺值是未知不是 0
+- App 沒有班表／到站時間：不要編時間，寫「請查官方時刻」並給 `OfficialInfo.taiwanTripURL`
 - 旅綠幣是活動點數，文案不能暗示可兌現、轉讓
 - 規格書禁止：區塊鏈、真實金流、宣稱碳權、把規則包裝成 AI 預測
 
 ## 除錯旗標
 
 見 README。截圖驗證可用 `simctl launch ... account=a-gov tab=0` 搭配 `demo-progress=` 直接跳到流程中段。
+首頁推薦會依「現在幾點」判斷班次是否已發車；截圖與 UI 測試加 `demo-time=09:30` 才會固定是 10:40 推薦（`DemoClock` 只影響這個判斷）。
