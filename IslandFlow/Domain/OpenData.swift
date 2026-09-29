@@ -54,8 +54,11 @@ enum OpenData {
         return text
     }
 
-    static var outboundStops: [StopRow] {
-        parseStops(bundled(stopsFile)).filter { $0.direction == "去程" }.sorted { $0.sequence < $1.sequence }
+    static var outboundStops: [StopRow] { stops(direction: "去程") }
+
+    /// 回程方向另有自己的站序，不能把去程倒過來當回程
+    static func stops(direction: String) -> [StopRow] {
+        parseStops(bundled(stopsFile)).filter { $0.direction == direction }.sorted { $0.sequence < $1.sequence }
     }
 
     static var ridership: [RidershipRow] { parseRidership(bundled(ridershipFile)) }

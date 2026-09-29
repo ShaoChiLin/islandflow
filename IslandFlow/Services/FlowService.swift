@@ -187,8 +187,10 @@ final class FlowService {
     }
 
     func leave(_ p: Participation, user: String) throws {
+        // 畫面只列自己的行程，但不能只靠畫面擋：服務層也要拒絕取消別人的紀錄
+        guard p.userID == user else { throw FlowError.msg("只能取消自己加入的任務") }
         guard p.statusValue == .joined else { throw FlowError.msg("已完成出發驗證，無法取消") }
-        audit(user, "leave", "mission", p.missionID, "")
+        audit(user, "leave", "mission", p.missionID, "未出發前取消，釋放名額；鎖定的 \(p.rewardAmount) 枚未發放")
         context.delete(p)
         try context.save()
     }

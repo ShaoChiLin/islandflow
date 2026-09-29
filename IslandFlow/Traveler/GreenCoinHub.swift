@@ -10,9 +10,10 @@ enum RedeemCatalog {
         case short(Int)
         case soldOut
 
+        /// 只判斷點數與庫存；店家營業狀態無法確認，所以不寫「現在可兌換」
         var label: String {
             switch self {
-            case .available: "可兌換"
+            case .available: "點數足夠"
             case .short(let n): "還差 \(n) 枚"
             case .soldOut: "今日已換完"
             }
@@ -39,7 +40,7 @@ enum RedeemCatalog {
             .filter { ids.contains($0.merchantID) && $0.isActive }
     }
 
-    /// 步行時間用每分鐘 75 公尺估；只是讓旅客有個概念，不是導航
+    /// 站牌到店家的直線距離、每分鐘 75 公尺換算；山區實際步行可能更久，畫面一律標「粗估」
     static func walkMinutes(_ m: Merchant, service: FlowService) -> Int? {
         guard let s = service.stop(m.stopSeq) else { return nil }
         let d = Geo.distanceMeters(lat1: m.lat, lon1: m.lon, lat2: s.lat, lon2: s.lon)
@@ -75,18 +76,21 @@ struct GreenCoinHubView: View {
         let partners = merchants.filter(\.isPartner)
         let partnerIDs = Set(partners.map(\.id))
         let catalog = items.filter { partnerIDs.contains($0.merchantID) && $0.isActive }
+        // 沒有用即時定位：焦點是剛完成（或最近完成）任務的終點站
         let focus = router.focusStop ?? lastCompletedStop
         let nearby = partners.filter { $0.stopSeq == focus }
         let others = partners.filter { $0.stopSeq != focus }
+        let nearbyIDs = Set(nearby.map(\.id))
 
         NavigationStack {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
                     BalanceCard(available: available, held: held)
-                    progressLine(catalog: catalog, available: available)
+                    progressLine(catalog: catalog, available: available,
+                                 focus: focus.map { (service.stopName($0), catalog.filter { nearbyIDs.contains($0.merchantID) }) })
 
                     if !nearby.isEmpty, let focus {
-                        section("目前站附近・\(service.stopName(focus))") {
+                        section("任務終點附近・\(service.stopName(focus))") {
                             ForEach(nearby) { merchantBlock($0, available: available, service: service) }
                         }
                     }
@@ -133,15 +137,21 @@ struct GreenCoinHubView: View {
         }
     }
 
+    /// 「可選」是點數足夠的單一品項數，不是這些點數能一次換完的數量
     @ViewBuilder
-    private func progressLine(catalog: [RewardItem], available: Int) -> some View {
+    private func progressLine(catalog: [RewardItem], available: Int, focus: (name: String, items: [RewardItem])?) -> some View {
         let inStock = catalog.filter { $0.stock > 0 }
         let affordable = inStock.filter { $0.coinCost <= available }
         let next = inStock.filter { $0.coinCost > available }.min { $0.coinCost < $1.coinCost }
         VStack(alignment: .leading, spacing: Space.s) {
             if !affordable.isEmpty {
-                Label("\(available) 枚，可兌換 \(affordable.count) 項", systemImage: "checkmark.seal.fill")
+                let here = focus.map { f in f.items.filter { $0.stock > 0 && $0.coinCost <= available }.count }
+                Label("全線 \(affordable.count) 項可選" + (focus.map { "；\($0.name) \(here ?? 0) 項" } ?? ""),
+                      systemImage: "checkmark.seal.fill")
                     .foregroundStyle(Color.brand)
+                    .accessibilityIdentifier("coin-progress")
+                Text("「可選」指點數足夠的單一品項，不代表 \(available) 枚能一次全部兌換")
+                    .font(.caption.weight(.regular)).foregroundStyle(.secondary)
             } else if let next {
                 Label("再 \(next.coinCost - available) 枚可換\(next.name)", systemImage: "flag.checkered")
                 if available == 0 {
@@ -172,9 +182,12 @@ struct GreenCoinHubView: View {
                     .background(Color.brand.opacity(0.12), in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text(m.name).font(.headline)
-                    let walk = RedeemCatalog.walkMinutes(m, service: service).map { "・步行約 \($0) 分鐘" } ?? ""
+                    if let tag = m.demoTag {
+                        DemoBadge(text: tag).padding(.vertical, 2).accessibilityIdentifier("merchant-demo-tag")
+                    }
+                    let walk = RedeemCatalog.walkMinutes(m, service: service).map { "・步行粗估 \($0) 分鐘（非導航）" } ?? ""
                     Text("\(service.stopName(m.stopSeq))站\(walk)").font(.caption).foregroundStyle(.secondary)
-                    Text("營業 \(m.hours)").font(.caption).foregroundStyle(.secondary)
+                    Text(m.hoursNote).font(.caption).foregroundStyle(.secondary)
                 }
             }
             ForEach(items.filter { $0.merchantID == m.id && $0.isActive }) { it in
@@ -351,7 +364,9 @@ struct RedeemFlowSheet: View {
                 .background(Color.brand.opacity(0.12), in: Circle())
             Text(merchant?.name ?? "").font(.headline)
             if let m = merchant {
-                Text("\(service.stopName(m.stopSeq))站").font(.caption).foregroundStyle(.secondary)
+                Text("\(service.stopName(m.stopSeq))站・\(m.hoursNote)")
+                    .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                if let tag = m.demoTag { DemoBadge(text: tag) }
             }
         }
     }
@@ -382,7 +397,7 @@ struct RedeemFlowSheet: View {
             Button("確認兌換") { generate() }
                 .buttonStyle(.primary)
                 .accessibilityIdentifier("redeem-confirm")
-            Text("下一步會顯示 QR Code，請給店員掃描。店員確認後才會扣點。")
+            Text("下一步會顯示 QR Code，請給店員掃描。店員確認後才會扣點。營業資訊待確認，請先確認店家有營業。")
                 .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
     }

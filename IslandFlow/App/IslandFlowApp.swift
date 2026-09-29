@@ -69,6 +69,17 @@ enum LaunchArgs {
     static var startTab: Int { value("tab").flatMap(Int.init) ?? 0 }
 }
 
+/// 只給「班次是否已發車」的排序與標示使用。帳本、站牌碼、兌換碼一律用真實時間，
+/// 否則兌換碼的倒數會和畫面時鐘對不上。`demo-time=09:30` 讓截圖與 UI 測試不受執行時段影響。
+enum DemoClock {
+    static var now: Date {
+        if let v = LaunchArgs.value("demo-time"), let m = ClockTime.minutes(v) {
+            return Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: .now) ?? .now
+        }
+        return .now
+    }
+}
+
 private extension View {
     /// `layout-width=320`：iOS 17 已沒有 320pt 寬的機型，用這個把整個畫面壓窄來檢查最小寬度版面
     @ViewBuilder func debugLayoutWidth() -> some View {

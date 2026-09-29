@@ -30,8 +30,10 @@ final class TravelerFlowUITests: XCTestCase {
 
     /// 旅客：探索 → 加入 → 出發碼 → 到站碼 → 完成後兩次點擊拿到兌換 QR
     func testTravelerCompletesMissionAndGetsRedeemQR() {
-        let app = launch(["account=t-demo", "reset-demo"])
+        // demo-time 固定「現在」是 09:30：兩班都還沒發車，推薦才會固定是 10:40／100 枚
+        let app = launch(["account=t-demo", "reset-demo", "demo-time=09:30"])
         XCTAssertTrue(app.staticTexts["今天搭哪班上山？"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.descendants(matching: .any)["demo-mode-notice"].exists, "首頁要常駐示範模式提示")
         snap("01-探索")
 
         app.buttons["recommended-view-mission"].tap()
@@ -46,6 +48,10 @@ final class TravelerFlowUITests: XCTestCase {
         XCTAssertTrue(app.buttons["demo-scan-valid"].waitForExistence(timeout: 5))
         snap("03-掃出發碼")
         app.buttons["demo-scan-valid"].tap()
+        XCTAssertTrue(app.buttons["checkin-continue"].waitForExistence(timeout: 5))
+        // 出發成功畫面的標題不能提前變成「到站驗證」
+        XCTAssertTrue(app.navigationBars["出發驗證完成"].exists)
+        XCTAssertFalse(app.navigationBars["到站驗證"].exists)
         app.buttons["checkin-continue"].tap()
 
         waitForLabel(primary, "掃描到站碼")
@@ -90,10 +96,29 @@ final class TravelerFlowUITests: XCTestCase {
     func testGreenCoinHubShowsBalanceAndOnlyPartners() {
         let app = launch(["account=t-demo", "reset-demo", "demo-progress=completed", "tab=2"])
         XCTAssertTrue(app.descendants(matching: .any)["coin-balance"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.staticTexts["目前站附近・竹子湖"].exists)
+        // 沒有即時定位，焦點是任務終點，不能寫「目前站」
+        XCTAssertTrue(app.staticTexts["任務終點附近・竹子湖"].exists)
+        XCTAssertTrue(app.descendants(matching: .any).matching(identifier: "merchant-demo-tag").firstMatch.exists)
         XCTAssertTrue(app.buttons["redeem-item-r-veg"].exists)
         XCTAssertFalse(app.staticTexts["竹子湖野菜餐廳"].exists, "未合作店家不應出現在旅客兌換清單")
         snap("07-綠幣中心")
+    }
+
+    /// 行程：未出發可以取消，取消後名額釋放、行程清空
+    func testTravelerCancelsMissionBeforeDeparture() {
+        let app = launch(["account=t-demo", "reset-demo", "demo-progress=joined", "tab=1"])
+        let cancel = app.buttons["trip-cancel"]
+        XCTAssertTrue(cancel.waitForExistence(timeout: 5))
+        snap("09-行程可取消")
+        cancel.tap()
+        // iOS 26 的確認對話框會出現兩個相同的按鈕元素（彈出層與其容器），取第一個即可
+        let confirm = app.buttons.matching(identifier: "trip-cancel-confirm").firstMatch
+        if confirm.waitForExistence(timeout: 3) {
+            confirm.tap()
+        } else {
+            app.sheets.buttons["取消任務"].firstMatch.tap()
+        }
+        XCTAssertTrue(app.staticTexts["還沒有行程"].waitForExistence(timeout: 5))
     }
 
     /// 第一次打開：旅客語言的歡迎頁，只有「開始探索」

@@ -308,7 +308,7 @@ struct TripsView: View {
                 } header: {
                     HStack { Text("北投竹子湖線 115 年月搭乘率"); OpenDataBadge() }
                 } footer: {
-                    Text("資料集 172679（臺北市政府觀光傳播局）。月平均搭乘率超過 100% 代表站位載客、全線已飽和；本案重點因此是把尖峰人流移到離峰班次，而不是單純補量。月資料不代表單一班次即時載客率。")
+                    Text("資料集 172679（臺北市政府觀光傳播局）。搭乘率＝月總搭乘人次 ÷ 月總座位供給；途中有人上下車時，同一個座位會被算好幾次，所以超過 100% 不代表某一班超載。這裡只當月度運量背景；哪些班次擁擠需要班次或區間資料，App 裡的單班載客率仍是示範值。")
                 }
                 Section {
                     ForEach(stops) { s in
@@ -361,10 +361,10 @@ struct RidershipChart: View {
                         .foregroundStyle(Color.orange)
                         .lineStyle(StrokeStyle(lineWidth: 2, dash: [5, 3]))
                 }
-                RuleMark(y: .value("滿載", 100))
+                RuleMark(y: .value("人次等於座位供給", 100))
                     .foregroundStyle(.secondary)
                     .lineStyle(StrokeStyle(lineWidth: 1, dash: [2, 2]))
-                    .annotation(position: .top, alignment: .leading) { Text("座位滿載 100%").font(.caption2).foregroundStyle(.secondary) }
+                    .annotation(position: .top, alignment: .leading) { Text("人次＝座位供給 100%").font(.caption2).foregroundStyle(.secondary) }
             }
             .chartXAxis { AxisMarks(values: weekday.map(\.month)) { v in AxisValueLabel { Text("\(v.as(Int.self) ?? 0)月") } } }
             .chartXScale(domain: (weekday.map(\.month).min() ?? 1)...(weekday.map(\.month).max() ?? 12),
