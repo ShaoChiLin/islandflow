@@ -1,0 +1,125 @@
+[
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "12BF50CE-8AC7-4A41-8F3A-02C1A4AD7710.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "07-綠幣中心_0_4DD8CA8F-4E51-493E-80DD-5D2423BE62F2.png",
+        "timestamp" : 1790649254.765
+      }
+    ],
+    "testIdentifier" : "TravelerFlowUITests/testGreenCoinHubShowsBalanceAndOnlyPartners()",
+    "testIdentifierURL" : "test://com.apple.xcode/IslandFlow/IslandFlowUITests/TravelerFlowUITests/testGreenCoinHubShowsBalanceAndOnlyPartners"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "4A066091-495B-4CFA-BEAA-841513202976.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "商家-核銷成功_0_E26FABC0-D5C7-451C-A408-398259B8E9B6.png",
+        "timestamp" : 1790649263.43
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "F1FA1D50-C7E9-4D0F-9DCA-975D3CE14E1C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "商家-核銷確認_0_3FDF16F1-C5E5-4539-8D8C-3BFE93234BF4.png",
+        "timestamp" : 1790649261.923
+      }
+    ],
+    "testIdentifier" : "TravelerFlowUITests/testMerchantScansAndConfirmsRedemption()",
+    "testIdentifierURL" : "test://com.apple.xcode/IslandFlow/IslandFlowUITests/TravelerFlowUITests/testMerchantScansAndConfirmsRedemption"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "01F0FA5F-1CB7-4C24-A8D5-F6DDB473E683.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "08-兌換成功_0_6D8EBAB2-2B6E-4C56-8EFA-0929DEA3E14E.png",
+        "timestamp" : 1790649285.567
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "27BFD023-D944-41BB-A386-F2D78577CEAF.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "06-兌換QR_0_38FB48B9-D1EF-468F-A065-EBBC7BBA5C68.png",
+        "timestamp" : 1790649284.012
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "64DCA930-1B32-4200-945F-2A095E25BC1C.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "05-兌換確認_0_DE3A4977-9AB4-4793-ADDD-0EBBF4336E54.png",
+        "timestamp" : 1790649282.119
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "86528229-55AD-41AE-A9E7-947E57D72569.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "04-任務完成_0_A7CC8490-5743-4656-8C09-FB6B7EFD0CE7.png",
+        "timestamp" : 1790649279.396
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "347BB766-65DF-46DB-835A-BB83779DE162.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "03-掃出發碼_0_F8E4428D-2BCC-4E9A-BC50-57B3EC8B0747.png",
+        "timestamp" : 1790649274.778
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "865F77ED-92BE-496F-9A2C-95DFB47F916B.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "02-任務詳情_0_9DD0944F-E827-4237-94B0-F7B09C1357C0.png",
+        "timestamp" : 1790649271.324
+      },
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "49F2D0F2-90C3-4B6C-9AC1-FF455FACB909.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "01-探索_0_5E0A925A-9182-4A85-95F1-200CF6BE4A15.png",
+        "timestamp" : 1790649268.575
+      }
+    ],
+    "testIdentifier" : "TravelerFlowUITests/testTravelerCompletesMissionAndGetsRedeemQR()",
+    "testIdentifierURL" : "test://com.apple.xcode/IslandFlow/IslandFlowUITests/TravelerFlowUITests/testTravelerCompletesMissionAndGetsRedeemQR"
+  },
+  {
+    "attachments" : [
+      {
+        "configurationName" : "Test Scheme Action",
+        "deviceId" : "CC3834C3-B419-44A1-AAF4-8E1334BE31F0",
+        "deviceName" : "IslandFlow-Audit-20260929",
+        "exportedFileName" : "B18E22C3-372C-4922-BAD9-7BE49B27F016.png",
+        "isAssociatedWithFailure" : false,
+        "suggestedHumanReadableName" : "00-歡迎_0_1B3A6955-088D-49B2-9840-D191481B526E.png",
+        "timestamp" : 1790649290.385
+      }
+    ],
+    "testIdentifier" : "TravelerFlowUITests/testWelcomeLeadsToExplore()",
+    "testIdentifierURL" : "test://com.apple.xcode/IslandFlow/IslandFlowUITests/TravelerFlowUITests/testWelcomeLeadsToExplore"
+  }
+]
