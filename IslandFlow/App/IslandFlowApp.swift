@@ -119,20 +119,16 @@ struct WelcomeView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: Space.xl) {
             Spacer()
-            ZStack {
-                Circle().fill(Color.brand.opacity(0.12)).frame(width: 132, height: 132)
-                Image(systemName: "leaf.circle.fill")
-                    .font(.system(size: 76))
-                    .foregroundStyle(Color.coin)
-            }
-            .frame(maxWidth: .infinity)
-            // 長按圖示打開展示選單：評審展示時切商家／管理者用，一般旅客不會看到
-            .onLongPressGesture(minimumDuration: 0.8) { showDemoMenu = true }
-            .accessibilityAddTraits(.isImage)
-            .accessibilityLabel("島流旅綠幣")
+            BrandLogo(size: 132, decorative: false)
+                .shadow(color: .black.opacity(0.12), radius: 16, y: 8)
+                .frame(maxWidth: .infinity)
+                // 長按圖示打開展示選單：評審展示時切商家／管理者用，一般旅客不會看到
+                .onLongPressGesture(minimumDuration: 0.8) { showDemoMenu = true }
+                .accessibilityAddTraits(.isImage)
+                .accessibilityLabel("旅綠")
 
             VStack(alignment: .leading, spacing: Space.m) {
-                Text("島流旅綠幣").font(.subheadline.weight(.semibold)).foregroundStyle(Color.brand)
+                Text("旅綠").font(.subheadline.weight(.semibold)).foregroundStyle(Color.brand)
                 Text("搭台灣好行\n完成低碳任務\n沿線兌換在地好物")
                     .font(.largeTitle.bold())
                     .fixedSize(horizontal: false, vertical: true)

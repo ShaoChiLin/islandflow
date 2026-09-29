@@ -182,8 +182,8 @@ struct ExploreView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
             HStack(spacing: Space.xs) {
-                Image(systemName: "leaf.circle.fill").foregroundStyle(Color.coin)
-                Text("島流旅綠幣").foregroundStyle(Color.brand)
+                BrandLogo(size: 22)
+                Text("旅綠").foregroundStyle(Color.brand)
             }
             .font(.subheadline.weight(.semibold))
             // 隱藏的展示選單入口：長按品牌名稱

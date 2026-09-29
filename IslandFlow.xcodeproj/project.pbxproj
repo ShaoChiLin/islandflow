@@ -354,7 +354,7 @@
 				DEVELOPMENT_TEAM = F3J4S8V4CB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "島流旅綠幣";
+				INFOPLIST_KEY_CFBundleDisplayName = "旅綠";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "掃描站牌動態碼與旅客兌換碼時需要使用相機。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "到站驗證時可選擇比對你是否在站點三百公尺內；位置只用於這次驗證。";
@@ -385,7 +385,7 @@
 				DEVELOPMENT_TEAM = F3J4S8V4CB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = "島流旅綠幣";
+				INFOPLIST_KEY_CFBundleDisplayName = "旅綠";
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_NSCameraUsageDescription = "掃描站牌動態碼與旅客兌換碼時需要使用相機。";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "到站驗證時可選擇比對你是否在站點三百公尺內；位置只用於這次驗證。";
