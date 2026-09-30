@@ -1,8 +1,11 @@
 # 旅綠 — 概念驗證版 iOS App
 
+<img src="docs/brand/旅綠驢_透明.png" alt="吉祥物旅綠驢" width="150" align="right">
+
 > 正式名稱「旅綠」（2026-09-29 起，原名「島流旅綠幣」）；點數仍叫「旅綠幣」。
 > 程式、Xcode 專案、Bundle ID 與 GitHub repo 沿用開發代號 **IslandFlow**，不跟著改名。
 > 品牌標誌原檔：[docs/brand/旅綠_logo_原檔.png](docs/brand/旅綠_logo_原檔.png)
+> 吉祥物「旅綠驢」（2026-09-30 定稿）：[原檔](docs/brand/旅綠驢_原檔.jpg)、[去背 PNG](docs/brand/旅綠驢_透明.png)；App 裡出現在首次歡迎頁
 
 台灣好行北投竹子湖線的「動態觀光任務與獎勵層」。旅客比較班次 → 加入任務 → 起點／終點掃站牌動態碼 →
 旅綠幣入帳 → 在合作小農店家兌換；管理者即時看到獎勵成本、新增搭乘、地方消費、分流與估算減碳。
