@@ -140,6 +140,29 @@ final class TravelerFlowUITests: XCTestCase {
         snap("11-路線詳情-回程")
     }
 
+    /// 三端展示切換：每一端右上角都有「切換身分」，一般民眾 → 政府 → 商家 → 一般民眾（D28）
+    func testRoleSwitchReachesAllThreeSides() {
+        let app = launch(["account=t-demo", "reset-demo", "demo-time=09:30"])
+        func switchTo(_ name: String) {
+            // iOS 26 工具列按鈕可能出現兩個相同元素，取第一個即可
+            let button = app.buttons.matching(identifier: "role-switch").firstMatch
+            XCTAssertTrue(button.waitForExistence(timeout: 5), "切換到「\(name)」前找不到「切換身分」")
+            button.tap()
+            let item = app.buttons[name].firstMatch
+            XCTAssertTrue(item.waitForExistence(timeout: 3), "選單裡沒有「\(name)」")
+            item.tap()
+        }
+
+        XCTAssertTrue(app.staticTexts["今天搭哪班上山？"].waitForExistence(timeout: 5))
+        snap("12-一般民眾-切換身分")
+        switchTo("觀光主管機關")
+        XCTAssertTrue(app.staticTexts["政策效益"].waitForExistence(timeout: 5))
+        switchTo("湖田小農市集")
+        XCTAssertTrue(app.staticTexts["掃碼核銷"].waitForExistence(timeout: 5))
+        switchTo("小綠")
+        XCTAssertTrue(app.staticTexts["今天搭哪班上山？"].waitForExistence(timeout: 5))
+    }
+
     /// 第一次打開：旅客語言的歡迎頁，只有「開始探索」
     func testWelcomeLeadsToExplore() {
         let app = launch(["show-welcome", "reset-demo"])

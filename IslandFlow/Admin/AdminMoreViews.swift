@@ -12,7 +12,7 @@ struct AdminMoreView: View {
                         Label("站牌動態碼看板", systemImage: "qrcode")
                     }
                 } footer: {
-                    Text("兩支手機展示時，把這支手機當站牌，用另一支手機的旅客身分掃描。")
+                    Text("兩支手機展示時，把這支手機當站牌，用另一支手機的一般民眾身分掃描。")
                 }
                 Section {
                     NavigationLink { MerchantAdminView(account: account) } label: {

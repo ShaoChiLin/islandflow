@@ -75,7 +75,7 @@ struct ScanRedeemView: View {
                 DemoBadge(text: "單機展示用")
             }
             if usable.isEmpty {
-                Text("目前沒有。請先切到旅客身分，在「兌換」頁產生兌換碼。")
+                Text("目前沒有。請先切到一般民眾身分，在「綠幣」頁產生兌換碼。")
                     .font(.caption).foregroundStyle(.secondary)
             }
             ForEach(usable) { t in

@@ -116,6 +116,7 @@ struct GreenCoinHubView: View {
             }
             .background(Color.canvas)
             .navigationTitle("綠幣")
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { AccountMenu() } }
             .sheet(item: $redeeming) { RedeemFlowSheet(item: $0, account: account) }
             .onAppear(perform: consumePending)
             .onChange(of: router.pendingRedeemItemID) { consumePending() }

@@ -35,7 +35,8 @@ innoserve 黑客松概念驗證 App。正式名稱「旅綠」，點數叫「旅
 - SwiftData 的 `@Attribute(.unique)` 遇到重複是**覆寫**不是丟錯，所以拒絕重複要靠 FlowService 先查再寫
 - 核銷用 `context.transaction`；冪等鍵在商家開啟確認畫面時產生
 - 模擬資料一律 `isSimulated = true`，管理端畫面上要有 `DemoBadge`
-- 旅客端分三頁（探索／行程／綠幣），依 `../Claude_Code_遊客端UX改版方針.md`（2026-09-29 版）：旅客畫面不放資料集編號、政策指標、展示帳號；商家與管理者只從隱藏的展示選單進入；不要加第四個分頁
+- 旅客端分三頁（探索／行程／綠幣），依 `../Claude_Code_遊客端UX改版方針.md`（2026-09-29 版）：旅客畫面不放資料集編號、政策指標；不要加第四個分頁
+- 三端角色叫「一般民眾／商家／政府」（`Role.label`），每一端右上角都有 `AccountMenu`「切換身分」（D28 取代 D15 的隱藏入口，使用者 2026-09-30 決定）。旅客探索首頁沒有導覽列，按鈕放在品牌列右側
 - 旅客端用 `Theme.swift` 的 `Space`／`Radius`／`.primary` 按鈕與 `ComfortChip`；有標籤或金額的橫排要用 `AdaptiveStack`，大字級才不會撐版
 - UI 測試靠 `accessibilityIdentifier` 找元件，改畫面別刪；改完旅客畫面要跑 `IslandFlowUITests`
 
