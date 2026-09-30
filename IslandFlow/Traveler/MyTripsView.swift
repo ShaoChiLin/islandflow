@@ -58,6 +58,7 @@ struct MyTripsView: View {
             }
             .background(Color.canvas)
             .navigationTitle("行程")
+            .toolbar { ToolbarItem(placement: .topBarTrailing) { AccountMenu() } }
             .navigationDestination(for: String.self) { id in
                 if let m = missions.first(where: { $0.id == id }) {
                     MissionDetailView(mission: m, account: account)

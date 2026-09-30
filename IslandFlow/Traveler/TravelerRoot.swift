@@ -181,14 +181,26 @@ struct ExploreView: View {
 
     private var header: some View {
         VStack(alignment: .leading, spacing: Space.xs) {
-            HStack(spacing: Space.xs) {
-                BrandLogo(size: 22)
-                Text("旅綠").foregroundStyle(Color.brand)
+            HStack {
+                HStack(spacing: Space.xs) {
+                    BrandLogo(size: 22)
+                    Text("旅綠").foregroundStyle(Color.brand)
+                }
+                .font(.subheadline.weight(.semibold))
+                // D15 的長按入口保留，排練過的人照舊能用
+                .onLongPressGesture(minimumDuration: 0.8) { showDemoMenu = true }
+                .accessibilityIdentifier("brand-demo-entry")
+                Spacer(minLength: Space.s)
+                // 首頁隱藏導覽列，放不進 toolbar，改在品牌列右側；字級上限比照工具列按鈕，免得展示按鈕蓋過標題
+                AccountMenu()
+                    .font(.subheadline.weight(.semibold))
+                    .buttonStyle(.bordered)
+                    .buttonBorderShape(.capsule)
+                    .controlSize(.small)
+                    .tint(Color.brand)
+                    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                    .fixedSize()
             }
-            .font(.subheadline.weight(.semibold))
-            // 隱藏的展示選單入口：長按品牌名稱
-            .onLongPressGesture(minimumDuration: 0.8) { showDemoMenu = true }
-            .accessibilityIdentifier("brand-demo-entry")
             Text("今天搭哪班上山？").font(.largeTitle.bold())
             Text("台灣好行北投竹子湖線・\(Date.now.formatted(.dateTime.month().day().weekday()))")
                 .font(.subheadline).foregroundStyle(.secondary)

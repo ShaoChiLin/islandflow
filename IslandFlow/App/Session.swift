@@ -6,9 +6,9 @@ enum Role: String {
 
     var label: String {
         switch self {
-        case .traveler: "旅客"
+        case .traveler: "一般民眾"
         case .merchant: "商家"
-        case .admin: "管理者"
+        case .admin: "政府"
         }
     }
 }
@@ -31,13 +31,13 @@ enum DemoAccounts {
         .init(id: "m-lake", role: .merchant, name: "湖田小農市集", subtitle: "竹子湖站・虛構示範商家", merchantID: "m-lake", symbol: "leaf"),
         .init(id: "m-tea", role: .merchant, name: "山嵐茶屋", subtitle: "陽明書屋站・虛構示範商家", merchantID: "m-tea", symbol: "cup.and.saucer"),
         .init(id: "m-onsen", role: .merchant, name: "湯守咖啡", subtitle: "北投公園站・虛構示範商家", merchantID: "m-onsen", symbol: "cup.and.heat.waves"),
-        .init(id: "a-gov", role: .admin, name: "觀光主管機關", subtitle: "示範管理者", symbol: "building.columns"),
+        .init(id: "a-gov", role: .admin, name: "觀光主管機關", subtitle: "示範政府管理端", symbol: "building.columns"),
     ]
 
     static func find(_ id: String?) -> DemoAccount? { all.first { $0.id == id } }
 }
 
-/// 一般使用者一律是旅客；商家與管理者只是競賽展示用的身分，從隱藏的展示選單切換。
+/// 一般使用者一律是旅客；商家與政府是競賽展示用的身分，從各頁右上角的「切換身分」切換（D28）。
 @Observable
 final class Session {
     private static let storeKey = "currentAccountID"

@@ -172,17 +172,50 @@ private struct WelcomeStep: View {
 
 // MARK: 展示選單（競賽展示用）
 
-/// 商家、管理者頁面右上角的按鈕。旅客端沒有這顆，改用長按品牌圖示打開。
+/// 三端共用的「切換身分」按鈕（D28 取代 D15 的隱藏入口）：評審現場要一眼看到、兩下點擊就換角色，
+/// 所以直接用選單列出帳號；載客率、重置等較少用的控制留在「展示控制」表單。
 struct AccountMenu: View {
-    @State private var show = false
+    @Environment(Session.self) private var session
+    @State private var showControls = false
 
     var body: some View {
-        Button {
-            show = true
+        Menu {
+            ForEach([Role.traveler, .merchant, .admin], id: \.self) { role in
+                // 用 Toggle 打勾而不用內嵌 Picker：Picker 會吃掉 Section 標題，評審就看不到角色名
+                Section(role.label) {
+                    ForEach(DemoAccounts.all.filter { $0.role == role }) { a in
+                        Toggle(isOn: isCurrent(a)) {
+                            Label(a.name, systemImage: a.symbol)
+                        }
+                    }
+                }
+            }
+            Divider()
+            Button {
+                showControls = true
+            } label: {
+                Label("展示控制…", systemImage: "slider.horizontal.3")
+            }
         } label: {
-            Image(systemName: "theatermasks").accessibilityLabel("展示選單")
+            // 工具列會把 Label 收成只剩圖示，手組才能保證文字一直在
+            HStack(spacing: Space.xs) {
+                Image(systemName: "person.2")
+                Text("切換身分")
+            }
         }
-        .sheet(isPresented: $show) { DemoMenuSheet() }
+        .accessibilityIdentifier("role-switch")
+        .sheet(isPresented: $showControls) { DemoMenuSheet() }
+    }
+
+    /// 點目前帳號不做事（Toggle 會想把它關掉，但總要有一個身分）
+    private func isCurrent(_ a: DemoAccount) -> Binding<Bool> {
+        Binding {
+            session.account.id == a.id
+        } set: { on in
+            guard on else { return }
+            session.hasOnboarded = true
+            session.account = a
+        }
     }
 }
 
@@ -199,7 +232,7 @@ struct DemoMenuSheet: View {
                 Section {
                     Label("目前：\(session.account.role.label)・\(session.account.name)", systemImage: session.account.symbol)
                 } footer: {
-                    Text("這個選單只給競賽展示使用，一般旅客看不到。")
+                    Text("競賽展示用。正式版的一般民眾不會有「切換身分」與這個選單。")
                 }
                 ForEach([Role.traveler, .merchant, .admin], id: \.self) { role in
                     Section("切換為\(role.label)") {
