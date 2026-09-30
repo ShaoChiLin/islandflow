@@ -139,7 +139,10 @@ struct WelcomeView: View {
                 WelcomeStep(icon: "qrcode.viewfinder", text: "上車、下車各掃一次站牌")
                 WelcomeStep(icon: "basket.fill", text: "到沿線小農店家換好物")
             }
-            Spacer()
+            // 下方留白先給旅綠驢，上方 Spacer 拿剩下的；到上限就不再長大
+            WelcomeMascot()
+                .frame(maxHeight: 144)
+                .layoutPriority(1)
             Button("開始探索") {
                 if session.account.role != .traveler { session.account = Session.defaultTraveler }
                 session.hasOnboarded = true
@@ -151,6 +154,24 @@ struct WelcomeView: View {
         .padding(.bottom, Space.l)
         .background(Color.canvas)
         .sheet(isPresented: $showDemoMenu) { DemoMenuSheet() }
+    }
+}
+
+/// 吉祥物「旅綠驢」（D29）。高度跟著剩餘空間走：小螢幕、大字級時縮小，
+/// 小到看不清表情就整個不放，絕不擠到文字或「開始探索」
+private struct WelcomeMascot: View {
+    var body: some View {
+        GeometryReader { geo in
+            if geo.size.height >= 96 {
+                Image("LuluDonkey")
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .accessibilityLabel("吉祥物旅綠驢")
+                    .accessibilityIdentifier("welcome-mascot")
+            }
+        }
     }
 }
 
