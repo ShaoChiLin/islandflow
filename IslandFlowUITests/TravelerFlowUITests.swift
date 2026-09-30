@@ -163,12 +163,21 @@ final class TravelerFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["今天搭哪班上山？"].waitForExistence(timeout: 5))
     }
 
-    /// 第一次打開：旅客語言的歡迎頁，只有「開始探索」
+    /// 第一次打開：旅客語言的歡迎頁，只有「開始探索」；旅綠驢只在留白夠時出現，而且不能蓋到三步驟或按鈕
     func testWelcomeLeadsToExplore() {
         let app = launch(["show-welcome", "reset-demo"])
         let start = app.buttons["welcome-start"]
         XCTAssertTrue(start.waitForExistence(timeout: 5))
         XCTAssertFalse(app.staticTexts["選擇示範身分"].exists)
+        let mascot = app.images["welcome-mascot"]
+        // SE 這類 667pt 高的機型留白不夠，本來就會隱藏
+        if app.windows.firstMatch.frame.height >= 800 {
+            XCTAssertTrue(mascot.exists, "高度夠的機型應該看得到旅綠驢")
+        }
+        if mascot.exists {
+            XCTAssertLessThanOrEqual(mascot.frame.maxY, start.frame.minY, "旅綠驢蓋到「開始探索」")
+            XCTAssertGreaterThanOrEqual(mascot.frame.minY, app.staticTexts["到沿線小農店家換好物"].frame.maxY, "旅綠驢蓋到三步驟")
+        }
         snap("00-歡迎")
         start.tap()
         XCTAssertTrue(app.staticTexts["今天搭哪班上山？"].waitForExistence(timeout: 5))

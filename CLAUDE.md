@@ -3,6 +3,7 @@
 innoserve 黑客松概念驗證 App。正式名稱「旅綠」，點數叫「旅綠幣」；畫面文案用這兩個名字，
 舊名「島流旅綠幣」不要再出現在畫面上。程式、專案、Bundle ID、站牌碼／兌換碼格式沿用 IslandFlow，不改。
 品牌標誌在 `Assets.xcassets/BrandLogo`（畫面用 `BrandLogo` 元件）與 `AppIcon`，原檔在 `docs/brand/`。
+吉祥物「旅綠驢」在 `Assets.xcassets/LuluDonkey`（目前只放歡迎頁，D29）；定稿原檔與去背 PNG 在 `docs/brand/`，外觀已定稿，不要重畫或重新上色。
 規格在上一層的 `實作規格.md`（PDF 內容相同）。
 原生 SwiftUI + SwiftData，iOS 17+，全繁中介面，單機運作不接後端。
 使用者用免費 Apple ID 自簽裝手機展示，不上架。
