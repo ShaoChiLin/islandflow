@@ -28,6 +28,7 @@ struct ScanRedeemView: View {
     @State private var code = ""
     @State private var error: String?
     @State private var preview: RedemptionPreview?
+    @FocusState private var codeFocused: Bool
 
     init(merchantID: String) {
         self.merchantID = merchantID
@@ -49,6 +50,7 @@ struct ScanRedeemView: View {
                             .keyboardType(.numberPad)
                             .font(.title3.monospaced())
                             .textFieldStyle(.roundedBorder)
+                            .focused($codeFocused)
                         Button("查詢") { lookup(code) }
                             .buttonStyle(.borderedProminent)
                             .disabled(code.count != 6)
@@ -61,6 +63,8 @@ struct ScanRedeemView: View {
                 }
                 .padding()
             }
+            // 數字鍵盤沒有收合鍵，不收的話錯誤訊息會被鍵盤蓋住
+            .scrollDismissesKeyboard(.immediately)
             .navigationTitle("掃碼核銷")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { AccountMenu() } }
             .sheet(item: $preview) { p in
@@ -104,6 +108,7 @@ struct ScanRedeemView: View {
     }
 
     private func lookup(_ raw: String) {
+        codeFocused = false
         do {
             preview = try service.preview(input: raw, merchantID: merchantID)
             error = nil
