@@ -43,6 +43,7 @@ final class Session {
     private static let storeKey = "currentAccountID"
     private static let onboardedKey = "hasOnboarded"
     private static let demoToolsKey = "showDemoTools"
+    private static let demoTimeKey = "demoTimeMinutes"
     static let defaultTraveler = DemoAccounts.all[0]
 
     var account: DemoAccount {
@@ -58,11 +59,17 @@ final class Session {
         didSet { UserDefaults.standard.set(showDemoTools, forKey: Self.demoToolsKey) }
     }
 
+    /// 固定的展示時刻（當天第幾分鐘），nil 是用實際時間。放在 Session 而不是只讀 UserDefaults，首頁才會跟著重算
+    var demoTimeMinutes: Int? {
+        didSet { UserDefaults.standard.set(demoTimeMinutes, forKey: Self.demoTimeKey) }
+    }
+
     init() {
         let d = UserDefaults.standard
         account = DemoAccounts.find(d.string(forKey: Self.storeKey)) ?? Self.defaultTraveler
         hasOnboarded = d.bool(forKey: Self.onboardedKey)
         showDemoTools = d.object(forKey: Self.demoToolsKey) as? Bool ?? true
+        demoTimeMinutes = d.object(forKey: Self.demoTimeKey) as? Int
         #if DEBUG
         // 模擬器的 UserDefaults 常被 cfprefsd 蓋回去，用啟動參數切身分比較可靠
         if let id = LaunchArgs.value("account"), let a = DemoAccounts.find(id) {

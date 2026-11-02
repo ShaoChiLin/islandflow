@@ -70,13 +70,22 @@ enum LaunchArgs {
 }
 
 /// 只給「班次是否已發車」的排序與標示使用。帳本、站牌碼、兌換碼一律用真實時間，
-/// 否則兌換碼的倒數會和畫面時鐘對不上。`demo-time=09:30` 讓截圖與 UI 測試不受執行時段影響。
+/// 否則兌換碼的倒數會和畫面時鐘對不上。`demo-time=09:30` 讓截圖與 UI 測試不受執行時段影響；
+/// 實機從主畫面開沒有啟動參數，所以展示選單另有「固定展示時刻」（D31），下午上台首推才不會變成已發車。
 enum DemoClock {
-    static var now: Date {
-        if let v = LaunchArgs.value("demo-time"), let m = ClockTime.minutes(v) {
-            return Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: .now) ?? .now
-        }
-        return .now
+    static let defaultMinutes = 9 * 60 + 30
+
+    /// 啟動參數優先，其次是展示選單的設定；都沒有就是 nil（用實際時間）
+    static func fixedMinutes(_ setting: Int?) -> Int? {
+        LaunchArgs.value("demo-time").flatMap(ClockTime.minutes) ?? setting
+    }
+
+    static func now(fixed setting: Int?) -> Date {
+        fixedMinutes(setting).map(date) ?? .now
+    }
+
+    static func date(minutes m: Int) -> Date {
+        Calendar.current.date(bySettingHour: m / 60, minute: m % 60, second: 0, of: .now) ?? .now
     }
 }
 
@@ -281,6 +290,19 @@ struct DemoMenuSheet: View {
                         }
                     }
                 }
+                Section {
+                    Toggle(isOn: fixedTimeOn) {
+                        Label("固定展示時刻", systemImage: "clock")
+                    }
+                    .accessibilityIdentifier("demo-time-toggle")
+                    if session.demoTimeMinutes != nil {
+                        DatePicker("展示時刻", selection: demoTime, displayedComponents: .hourAndMinute)
+                    }
+                } header: {
+                    Text("展示時刻")
+                } footer: {
+                    Text("只影響首頁判斷哪班還沒發車；掃碼、兌換碼與紀錄仍用實際時間。下午上台設 09:30，首推就是 10:40。")
+                }
                 Section("展示控制") {
                     NavigationLink {
                         TripLoadEditor().navigationTitle("班次載客率")
@@ -314,6 +336,22 @@ struct DemoMenuSheet: View {
                     dismiss()
                 }
             }
+        }
+    }
+
+    private var fixedTimeOn: Binding<Bool> {
+        Binding {
+            session.demoTimeMinutes != nil
+        } set: { on in
+            session.demoTimeMinutes = on ? DemoClock.defaultMinutes : nil
+        }
+    }
+
+    private var demoTime: Binding<Date> {
+        Binding {
+            DemoClock.date(minutes: session.demoTimeMinutes ?? DemoClock.defaultMinutes)
+        } set: { d in
+            session.demoTimeMinutes = ClockTime.minuteOfDay(d)
         }
     }
 }

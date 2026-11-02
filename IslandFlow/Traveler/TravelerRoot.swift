@@ -53,7 +53,7 @@ struct MissionOption: Identifiable {
 
 @MainActor
 enum MissionOptions {
-    static func build(_ service: FlowService, missions: [Mission], user: String, now: Date = DemoClock.now) -> [MissionOption] {
+    static func build(_ service: FlowService, missions: [Mission], user: String, now: Date) -> [MissionOption] {
         let rules = RewardRules(service.rules())
         let nowMinute = ClockTime.minuteOfDay(now)
         return missions.filter(\.isActive).compactMap { m -> MissionOption? in
@@ -92,6 +92,7 @@ struct ExploreView: View {
     let account: DemoAccount
     @Environment(\.modelContext) private var context
     @Environment(TravelerRouter.self) private var router
+    @Environment(Session.self) private var session
     // 這些 @Query 讓管理端調載客率、有人加入任務時首頁立刻重算
     @Query(sort: \BusTrip.departure) private var trips: [BusTrip]
     @Query private var missions: [Mission]
@@ -109,7 +110,8 @@ struct ExploreView: View {
 
     var body: some View {
         let service = FlowService(context: context)
-        let options = MissionOptions.build(service, missions: missions, user: account.id)
+        let options = MissionOptions.build(service, missions: missions, user: account.id,
+                                           now: DemoClock.now(fixed: session.demoTimeMinutes))
         // 不可參加的班次（額滿、兌換品送完、卡時段時已發車）不當首推，只列在其他班次並寫原因
         let best = options.first { !$0.availability.isClosed }
         let others = options.filter { $0.id != best?.id }
@@ -204,6 +206,11 @@ struct ExploreView: View {
             Text("今天搭哪班上山？").font(.largeTitle.bold())
             Text("台灣好行北投竹子湖線・\(Date.now.formatted(.dateTime.month().day().weekday()))")
                 .font(.subheadline).foregroundStyle(.secondary)
+            // 固定展示時刻時寫出來，不讓「推薦 10:40」看起來像是現在真的還沒發車；獨立一行，大字級才不會把字拆開
+            if let m = DemoClock.fixedMinutes(session.demoTimeMinutes) {
+                Label("展示時刻 \(ClockTime.text(m))", systemImage: "clock")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
             DemoModeNotice()
         }
         .padding(.top, Space.s)
