@@ -198,13 +198,13 @@ private struct AssumptionsSection: View {
             Stepper("新增搭乘增量比例 \(Fmt.pct(rules.incrementalRideRatio))", value: $rules.incrementalRideRatio, in: 0.05...1, step: 0.05)
             Stepper("平均加購金額 \(Fmt.ntd(rules.avgLocalSpendNTD))", value: $rules.avgLocalSpendNTD, in: 0...1000, step: 10)
             Stepper("分流站點基準值 \(rules.diversionBaseline) 人次", value: $rules.diversionBaseline, in: 0...500, step: 5)
-            Stepper("自用小客車 \(String(format: "%.3f", rules.carFactor)) kgCO₂e/人公里", value: $rules.carFactor, in: 0...0.5, step: 0.005)
+            Stepper("自用小客車 \(String(format: "%.3f", rules.carFactor)) kgCO₂e/人公里（本版未使用）", value: $rules.carFactor, in: 0...0.5, step: 0.005)
             Stepper("公車 \(String(format: "%.3f", rules.busFactor)) kgCO₂e/人公里", value: $rules.busFactor, in: 0...0.5, step: 0.005)
             Stepper("道路繞行係數 ×\(String(format: "%.2f", rules.routeDetourFactor))", value: $rules.routeDetourFactor, in: 1...2, step: 0.05)
         } header: {
             HStack { Text("估算假設"); DemoBadge() }
         } footer: {
-            Text("估算避免排放量 = 路線距離 ×（自用車係數 − 公車係數）。以上係數為示範值，公開展示前請改用環境部產品碳足跡資料庫等可引用來源，並記錄版本與適用年份。路線距離由站點座標直線距離 × 繞行係數估算。這不是碳權。")
+            Text("儀表板「搭公車排放估算」= 每段路線距離 × 公車係數後加總，和旅客端同一算法。原本的交通方式還沒蒐集，所以不計算減碳；自用小客車係數留給之後旅客自填原交通方式時比較。以上係數為示範值，公開展示前請改用環境部產品碳足跡資料庫等可引用來源，並記錄版本與適用年份。路線距離由站點座標直線距離 × 繞行係數估算。這不是碳權。")
         }
     }
 }

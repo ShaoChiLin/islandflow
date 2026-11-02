@@ -100,9 +100,22 @@ final class TokenTests: XCTestCase {
 }
 
 final class CarbonAndMetricsTests: XCTestCase {
-    func testAvoidedEmission() {
-        XCTAssertEqual(CarbonEstimator.avoidedKg(distanceKm: 10, carFactor: 0.115, busFactor: 0.04), 0.75, accuracy: 1e-9)
-        XCTAssertEqual(CarbonEstimator.avoidedKg(distanceKm: 10, carFactor: 0.02, busFactor: 0.04), 0)
+    func testDashboardBusEmissionMatchesTravelerAndSkipsUnknown() {
+        let now = Date()
+        func p(_ u: String, km: Double, done: Bool = true) -> ParticipationFact {
+            ParticipationFact(userID: u, missionID: "M", completed: done, completedAt: done ? now : nil, joinedAt: now,
+                              isOffPeak: true, toDiversionTarget: false, distanceKm: km, isSimulated: false)
+        }
+        // 兩段可估算、一段缺距離、一段未完成
+        let parts = [p("a", km: 10), p("b", km: 5), p("c", km: 0), p("d", km: 10, done: false)]
+        let m = DashboardMetrics.compute(views: 0, participations: parts, redemptions: [], coinsIssued: 0,
+                                         assumptions: MetricAssumptions(), now: now)
+        let bus = EmissionFactor(kgPerKm: 0.04, unit: .perPassengerKm, source: nil, isDemo: true)
+        let traveler = TransportEmission.perPersonKg(distanceKm: 10, factor: bus)! + TransportEmission.perPersonKg(distanceKm: 5, factor: bus)!
+        XCTAssertEqual(m.busEmissionKg, traveler, accuracy: 1e-9)
+        XCTAssertEqual(m.busEmissionKg, 0.6, accuracy: 1e-9)
+        XCTAssertEqual(m.emissionEstimatedSegments, 2)
+        XCTAssertEqual(m.emissionUnknownSegments, 1, "缺距離是未知，不當 0 也不加進總和")
     }
 
     func testRouteDistanceUsesDetourFactor() {
@@ -139,7 +152,8 @@ final class CarbonAndMetricsTests: XCTestCase {
         XCTAssertEqual(m.leverage!, 540.0 / 300, accuracy: 1e-9)
         XCTAssertEqual(m.offPeakShare!, 2.0 / 3, accuracy: 1e-9)
         XCTAssertEqual(m.diversionDelta, 1)
-        XCTAssertEqual(m.avoidedKg, 3 * 0.75, accuracy: 1e-9)
+        XCTAssertEqual(m.busEmissionKg, 3 * 10 * 0.04, accuracy: 1e-9)
+        XCTAssertEqual(m.emissionUnknownSegments, 0)
     }
 
     func testOpenDataParsing() {
