@@ -91,6 +91,18 @@ final class TravelUXIntegrationTests: XCTestCase {
         XCTAssertEqual(noon.last?.availability, .replay)
     }
 
+    func testFixedDemoTimeKeepsMorningRecommendationInTheAfternoon() {
+        // 實機從主畫面開沒有啟動參數；展示選單設 09:30 後，不管幾點上台首推都是 10:40（D31）
+        let fixed = DemoClock.now(fixed: DemoClock.defaultMinutes)
+        XCTAssertEqual(ClockTime.minuteOfDay(fixed), 9 * 60 + 30)
+        let options = MissionOptions.build(service, missions: missions(), user: "t-demo", now: fixed)
+        XCTAssertEqual(options.first?.mission.id, "M-A")
+        XCTAssertEqual(options.first?.availability, .open)
+        XCTAssertNil(DemoClock.fixedMinutes(nil), "沒設定就用實際時間")
+        XCTAssertEqual(ClockTime.text(570), "09:30")
+        XCTAssertEqual(ClockTime.text(13 * 60 + 5), "13:05")
+    }
+
     func testFullMissionIsNotRecommended() throws {
         service.mission("M-A")!.capacity = 1
         try service.join(mission: service.mission("M-A")!, user: "someone")

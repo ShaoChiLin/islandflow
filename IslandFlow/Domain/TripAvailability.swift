@@ -40,6 +40,11 @@ enum ClockTime {
         return h * 60 + m
     }
 
+    /// 570 → "09:30"
+    static func text(_ minutes: Int) -> String {
+        String(format: "%02d:%02d", minutes / 60, minutes % 60)
+    }
+
     static func minuteOfDay(_ date: Date, calendar: Calendar = .current) -> Int {
         let c = calendar.dateComponents([.hour, .minute], from: date)
         return (c.hour ?? 0) * 60 + (c.minute ?? 0)
