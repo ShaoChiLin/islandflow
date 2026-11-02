@@ -145,7 +145,7 @@ final class FlowIntegrationTests: XCTestCase {
         _ = try complete(missionA, user: user)
         let tok = try service.createRedeemToken(user: user, item: service.item("r-calla")!)
         let p = try service.preview(input: TokenSigner.shortCode(for: tok.id), merchantID: "m-lake")
-        XCTAssertEqual(p.token.id, tok.id)
+        XCTAssertEqual(p.tokenID, tok.id)
     }
 
     func testExpiredRedeemTokenRejectedAndLogged() throws {

@@ -60,6 +60,7 @@ struct GreenCoinHubView: View {
     @Query private var tokens: [RedemptionToken]
     @Query private var parts: [Participation]
     @State private var redeeming: RewardItem?
+    @State private var scanningReceipt = false
 
     init(account: DemoAccount) {
         self.account = account
@@ -86,6 +87,18 @@ struct GreenCoinHubView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: Space.xl) {
                     BalanceCard(available: available, held: held)
+                    // 關掉兌換畫面後，店家才用另一支手機核銷的情況，從這裡回掃
+                    if !service.awaitingReceipt(for: account.id).isEmpty {
+                        Button {
+                            scanningReceipt = true
+                        } label: {
+                            Label("店員用另一支手機核銷了？掃完成碼", systemImage: "qrcode.viewfinder")
+                                .font(.subheadline)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.secondaryAction)
+                        .accessibilityIdentifier("hub-scan-receipt")
+                    }
                     progressLine(catalog: catalog, available: available,
                                  focus: focus.map { (service.stopName($0), catalog.filter { nearbyIDs.contains($0.merchantID) }) })
 
@@ -118,6 +131,7 @@ struct GreenCoinHubView: View {
             .navigationTitle("綠幣")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { AccountMenu() } }
             .sheet(item: $redeeming) { RedeemFlowSheet(item: $0, account: account) }
+            .sheet(isPresented: $scanningReceipt) { ReceiptScanSheet(account: account) }
             .onAppear(perform: consumePending)
             .onChange(of: router.pendingRedeemItemID) { consumePending() }
         }
@@ -306,6 +320,7 @@ struct RedeemFlowSheet: View {
     @Query private var entries: [LedgerEntry]
     @State private var tokenID: String?
     @State private var error: String?
+    @State private var scanningReceipt = false
 
     init(item: RewardItem, account: DemoAccount) {
         self.item = item
@@ -353,6 +368,7 @@ struct RedeemFlowSheet: View {
             }
             // 關掉畫面不作廢兌換碼：旅客可能只是先收起手機走到櫃台，單機展示也要能切到商家身分去核銷。
             // 沒用掉的碼 5 分鐘後自然失效，同一品項重新產生時舊碼也會被作廢
+            .sheet(isPresented: $scanningReceipt) { ReceiptScanSheet(account: account) }
         }
     }
 
@@ -422,6 +438,7 @@ struct RedeemFlowSheet: View {
                         Text("兌換碼已過期").font(.headline)
                         Text("點數沒有被扣，重新產生就能繼續").font(.caption).foregroundStyle(.secondary)
                         Button("重新產生") { generate() }.buttonStyle(.primary)
+                        Button("店員已核銷？掃店家完成碼") { scanningReceipt = true }.font(.subheadline)
                     }
                     .frame(height: 280)
                 }
@@ -438,6 +455,14 @@ struct RedeemFlowSheet: View {
                 Text("等待店員掃描").font(.subheadline.weight(.semibold))
             }
             CountdownText(until: t.expiresAt).font(.caption)
+            // 店家用另一支手機核銷時，這支手機不會自己知道，要掃店家畫面上的完成碼才扣點
+            Button {
+                scanningReceipt = true
+            } label: {
+                Label("店員核銷後，掃店家完成碼", systemImage: "qrcode.viewfinder")
+            }
+            .buttonStyle(.secondaryAction)
+            .accessibilityIdentifier("scan-receipt")
             if session.showDemoTools {
                 demoMerchantTools(t)
             }
@@ -451,7 +476,7 @@ struct RedeemFlowSheet: View {
             Button("模擬店員掃描") {
                 do {
                     let p = try service.preview(input: service.payload(for: t), merchantID: t.merchantID)
-                    _ = try service.confirm(tokenID: p.token.id, merchantID: t.merchantID, idempotencyKey: UUID().uuidString)
+                    _ = try service.confirm(tokenID: p.tokenID, merchantID: t.merchantID, idempotencyKey: UUID().uuidString)
                 } catch {
                     self.error = error.localizedDescription
                 }
@@ -501,6 +526,63 @@ struct RedeemFlowSheet: View {
             error = nil
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+}
+
+// MARK: T09 回掃店家完成碼
+
+/// 兩支手機之間沒有連線：店家手機核銷後顯示完成碼，旅客掃了這支手機才扣點
+struct ReceiptScanSheet: View {
+    let account: DemoAccount
+    @Environment(\.modelContext) private var context
+    @Environment(\.dismiss) private var dismiss
+    @State private var error: String?
+    @State private var note: String?
+    @State private var busy = false
+
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(spacing: Space.l) {
+                    Text("掃描店員手機上的「完成碼」").font(.headline)
+                    QRScannerView { apply($0) }
+                        .frame(height: 280)
+                    if !QRScannerView.hasCamera {
+                        PasteCodeButton { apply($0) }
+                    }
+                    if let error { ErrorBanner(message: error) }
+                    if let note {
+                        Label(note, systemImage: "checkmark.circle").font(.subheadline).foregroundStyle(Color.brand)
+                    }
+                    Text("店員核銷後才會出現完成碼。掃完才從你的旅綠幣扣點；同一張完成碼只扣一次。")
+                        .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+                }
+                .padding(Space.xl)
+            }
+            .navigationTitle("回掃完成碼")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar { ToolbarItem(placement: .cancellationAction) { Button("關閉") { dismiss() } } }
+        }
+    }
+
+    private func apply(_ raw: String) {
+        // 相機會連續回報同一個碼，處理中先擋掉
+        guard !busy else { return }
+        busy = true
+        defer { busy = false }
+        do {
+            let (_, replayed) = try FlowService(context: context).applyReceipt(raw: raw, user: account.id)
+            error = nil
+            if replayed {
+                note = "這張完成碼已經掃過，沒有重複扣點"
+            } else {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                dismiss()
+            }
+        } catch {
+            self.error = error.localizedDescription
+            UINotificationFeedbackGenerator().notificationOccurred(.error)
         }
     }
 }

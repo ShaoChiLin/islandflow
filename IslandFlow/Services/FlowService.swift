@@ -17,10 +17,15 @@ struct CheckinResult {
 }
 
 struct RedemptionPreview: Identifiable {
-    var id: String { token.id }
-    var token: RedemptionToken
+    var id: String { tokenID }
+    var tokenID: String
+    var expiresAt: Date
     var item: RewardItem
     var userName: String
+    /// 兌換碼是別支手機產生的（本機查無憑證）：核銷要帶著簽章內容，成功後要給旅客回掃完成碼
+    var remote: RedeemToken?
+    /// 原始兌換碼，商家端「再掃一次」用
+    var payload: String
 }
 
 /// 所有會改資料的動作都集中在這裡，對應規格書的 API 一節。
@@ -359,39 +364,82 @@ final class FlowService {
     }
 
     func payload(for token: RedemptionToken) -> String {
-        TokenSigner.sign(RedeemToken(tid: token.id, exp: Int(token.expiresAt.timeIntervalSince1970)))
+        TokenSigner.sign(RedeemToken(v: 2, tid: token.id, exp: Int(token.expiresAt.timeIntervalSince1970),
+                                     uid: token.userID, rid: token.rewardID, mid: token.merchantID,
+                                     amt: item(token.rewardID)?.coinCost))
     }
 
     // MARK: M02 商家預覽
 
     func preview(input raw: String, merchantID: String) throws -> RedemptionPreview {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        let token: RedemptionToken?
         if text.hasPrefix(TokenSigner.prefix + ".") {
+            let payload: RedeemToken
             do {
-                let payload = try TokenSigner.verifyRedeem(text, now: now())
-                token = redemptionToken(payload.tid)
+                payload = try TokenSigner.verifyRedeem(text, now: now())
             } catch TokenError.expired {
                 // 過期的碼仍然記一筆失敗，讓商家事後查得到原因
-                if let tid = try? JSONDecoder().decode(RedeemToken.self, from: Data(base64URL: String(text.split(separator: ".")[1])) ?? Data()).tid,
-                   let tok = redemptionToken(tid) {
-                    recordFailure(tok, merchantID: merchantID, reason: "兌換碼已過期")
+                if let p = try? JSONDecoder().decode(RedeemToken.self, from: Data(base64URL: String(text.split(separator: ".")[1])) ?? Data()) {
+                    if let tok = redemptionToken(p.tid) {
+                        recordFailure(tok, merchantID: merchantID, reason: "兌換碼已過期")
+                    } else if let r = p.remote, r.merchant == merchantID {
+                        recordFailure(tokenID: p.tid, userID: r.user, rewardID: r.reward, merchantID: merchantID, reason: "兌換碼已過期")
+                    }
                 }
                 throw FlowError.msg("兌換碼已過期（有效 \(rules().redeemTokenTTL / 60) 分鐘），請旅客重新產生")
             }
+            if let tok = redemptionToken(payload.tid) {
+                return try localPreview(tok, merchantID: merchantID, payload: text)
+            }
+            guard payload.remote != nil else { throw FlowError.msg("查無此兌換碼") }
+            let it = try validateRemote(payload, merchantID: merchantID, recordFailures: true)
+            return RedemptionPreview(tokenID: payload.tid, expiresAt: Date(timeIntervalSince1970: TimeInterval(payload.exp)),
+                                     item: it, userName: DemoAccounts.find(payload.uid ?? "")?.name ?? "旅客",
+                                     remote: payload, payload: text)
         } else if text.count == 6, text.allSatisfy(\.isNumber) {
             let h = TokenSigner.hash(text)
-            token = try? context.fetch(FetchDescriptor<RedemptionToken>(
+            let token = try? context.fetch(FetchDescriptor<RedemptionToken>(
                 predicate: #Predicate { $0.codeHash == h },
                 sortBy: [SortDescriptor(\.createdAt, order: .reverse)])).first
+            // 短碼只對得到本機資料庫，兩支手機之間沒有東西可查
+            guard let tok = token else { throw FlowError.msg("查無此兌換碼。旅客若用另一支手機，請改掃 QR Code（短碼只能同一支手機核銷）") }
+            return try localPreview(tok, merchantID: merchantID, payload: payload(for: tok))
         } else {
             throw TokenError.malformed
         }
-        guard let tok = token else { throw FlowError.msg("查無此兌換碼") }
+    }
+
+    private func localPreview(_ tok: RedemptionToken, merchantID: String, payload: String) throws -> RedemptionPreview {
         try validate(tok, merchantID: merchantID, recordFailures: true)
         guard let item = item(tok.rewardID) else { throw FlowError.msg("找不到兌換品項") }
         let name = DemoAccounts.find(tok.userID)?.name ?? "旅客"
-        return RedemptionPreview(token: tok, item: item, userName: name)
+        return RedemptionPreview(tokenID: tok.id, expiresAt: tok.expiresAt, item: item, userName: name,
+                                 remote: nil, payload: payload)
+    }
+
+    /// 跨機兌換碼的檢查。旅客的餘額在對方手機上、產生碼時已圈存，這裡查不到也不檢查；
+    /// 能擋的是簽章內容與本機的店家、品項、庫存，以及「這張碼在本機核銷過沒有」
+    private func validateRemote(_ p: RedeemToken, merchantID: String, recordFailures: Bool) throws -> RewardItem {
+        guard let r = p.remote else { throw FlowError.msg("查無此兌換碼") }
+        func fail(_ reason: String) -> FlowError {
+            if recordFailures {
+                recordFailure(tokenID: p.tid, userID: r.user, rewardID: r.reward, merchantID: merchantID, reason: reason)
+            }
+            return FlowError.msg(reason)
+        }
+        if r.merchant != merchantID {
+            throw FlowError.msg("這張兌換碼屬於「\(merchant(r.merchant)?.name ?? "其他商家")」，不能在本店核銷")
+        }
+        let tid = p.tid
+        if let used = try? context.fetch(FetchDescriptor<Redemption>(
+            predicate: #Predicate { $0.tokenID == tid && $0.status == "success" })).first {
+            throw fail("此兌換碼已於 \(used.redeemedAt.formatted(date: .omitted, time: .shortened)) 使用過，不能再次核銷")
+        }
+        if p.exp <= Int(now().timeIntervalSince1970) { throw fail("兌換碼已過期，請旅客重新產生") }
+        guard let it = item(r.reward), it.merchantID == merchantID else { throw fail("本店沒有這個兌換品項") }
+        // 兩支手機的品項點數若被改得不一樣，不知道該以哪邊為準，乾脆不收
+        guard it.coinCost == r.amount else { throw fail("兌換碼上的點數（\(r.amount) 枚）和本店目前的設定（\(it.coinCost) 枚）不同，請旅客重新產生") }
+        return it
     }
 
     func redemptionToken(_ id: String) -> RedemptionToken? {
@@ -415,22 +463,30 @@ final class FlowService {
     }
 
     private func recordFailure(_ tok: RedemptionToken, merchantID: String, reason: String) {
-        let it = item(tok.rewardID)
-        context.insert(Redemption(idempotencyKey: "fail|\(UUID().uuidString)", userID: tok.userID, merchantID: merchantID,
-                                  rewardID: tok.rewardID, rewardName: it?.name ?? "", coinAmount: it?.coinCost ?? 0,
-                                  status: "failed", failureReason: reason, tokenID: tok.id, redeemedAt: now()))
+        recordFailure(tokenID: tok.id, userID: tok.userID, rewardID: tok.rewardID, merchantID: merchantID, reason: reason)
+    }
+
+    private func recordFailure(tokenID: String, userID: String, rewardID: String, merchantID: String, reason: String) {
+        let it = item(rewardID)
+        context.insert(Redemption(idempotencyKey: "fail|\(UUID().uuidString)", userID: userID, merchantID: merchantID,
+                                  rewardID: rewardID, rewardName: it?.name ?? "", coinAmount: it?.coinCost ?? 0,
+                                  status: "failed", failureReason: reason, tokenID: tokenID, redeemedAt: now()))
         try? context.save()
     }
 
     // MARK: M03 確認兌換
 
     /// 冪等：同一個 idempotencyKey 送幾次都只會有一筆成功交易，重送會拿回第一次的結果。
-    func confirm(tokenID: String, merchantID: String, idempotencyKey: String) throws -> (Redemption, replayed: Bool) {
+    func confirm(tokenID: String, merchantID: String, idempotencyKey: String,
+                 remote: RedeemToken? = nil) throws -> (Redemption, replayed: Bool) {
         let k = idempotencyKey
         if let existing = try context.fetch(FetchDescriptor<Redemption>(predicate: #Predicate { $0.idempotencyKey == k })).first {
             return (existing, true)
         }
-        guard let tok = redemptionToken(tokenID) else { throw FlowError.msg("查無此兌換碼") }
+        guard let tok = redemptionToken(tokenID) else {
+            guard let remote, remote.tid == tokenID else { throw FlowError.msg("查無此兌換碼") }
+            return (try confirmRemote(remote, merchantID: merchantID, idempotencyKey: idempotencyKey), false)
+        }
         try validate(tok, merchantID: merchantID, recordFailures: true)
         guard let it = item(tok.rewardID) else { throw FlowError.msg("找不到兌換品項") }
         guard it.stock > 0 else {
@@ -456,6 +512,77 @@ final class FlowService {
             audit(merchantID, "redeem_confirm", "redemption", r.id, "\(it.name) −\(it.coinCost)")
         }
         return (r, false)
+    }
+
+    /// 跨機核銷只動商家這支手機：記交易、扣庫存。旅客的扣點等旅客回掃完成碼時在旅客手機上寫
+    private func confirmRemote(_ p: RedeemToken, merchantID: String, idempotencyKey: String) throws -> Redemption {
+        let it = try validateRemote(p, merchantID: merchantID, recordFailures: true)
+        guard it.stock > 0 else {
+            recordFailure(tokenID: p.tid, userID: p.uid ?? "", rewardID: it.id, merchantID: merchantID, reason: "品項已兌換完畢")
+            throw FlowError.msg("「\(it.name)」已兌換完畢")
+        }
+        let r = Redemption(idempotencyKey: idempotencyKey, userID: p.uid ?? "", merchantID: merchantID, rewardID: it.id,
+                           rewardName: it.name, coinAmount: it.coinCost, status: "success", tokenID: p.tid, redeemedAt: now())
+        try context.transaction {
+            context.insert(r)
+            it.stock -= 1
+            audit(merchantID, "redeem_confirm_remote", "redemption", r.id, "\(it.name) −\(it.coinCost)（他機兌換碼，待旅客回掃）")
+        }
+        return r
+    }
+
+    /// 本機查不到憑證的成功核銷，代表兌換碼來自另一支手機，要把完成碼給旅客回掃
+    func needsReceipt(_ r: Redemption) -> Bool {
+        r.isSuccess && redemptionToken(r.tokenID) == nil
+    }
+
+    /// 完成碼 24 小時內有效：旅客可能核銷完就收起手機，晚點才想到要回掃
+    static let receiptTTL: TimeInterval = 24 * 3600
+
+    func receiptPayload(for r: Redemption) -> String {
+        let at = Int(r.redeemedAt.timeIntervalSince1970)
+        return TokenSigner.sign(RedeemReceipt(tid: r.tokenID, rdm: r.id, uid: r.userID, rid: r.rewardID, mid: r.merchantID,
+                                              amt: r.coinAmount, at: at, exp: at + Int(Self.receiptTTL)))
+    }
+
+    // MARK: T09 旅客回掃完成碼
+
+    /// 冪等：同一張完成碼掃幾次都只扣一次。兌換碼過期或被重新產生作廢也照樣扣——
+    /// 店家已經把東西交出去，帳本要記實際發生的事（使用者 11-02 決定）。
+    @discardableResult
+    func applyReceipt(raw: String, user: String) throws -> (RedemptionToken, replayed: Bool) {
+        let rc = try TokenSigner.verifyReceipt(raw, now: now())
+        guard let tok = redemptionToken(rc.tid) else {
+            throw FlowError.msg("這張完成碼對應的兌換碼不是在這支手機產生的")
+        }
+        guard tok.userID == rc.uid, tok.userID == user else { throw FlowError.msg("這張完成碼屬於其他旅客") }
+        guard tok.rewardID == rc.rid, tok.merchantID == rc.mid else { throw FlowError.msg("完成碼和兌換碼的品項或店家不符") }
+        let key = "redemption|\(rc.rdm)"
+        if try context.fetchCount(FetchDescriptor<LedgerEntry>(predicate: #Predicate { $0.key == key })) > 0 {
+            return (tok, true)
+        }
+        if tok.usedAt != nil { throw FlowError.msg("這張兌換碼已經在這支手機上核銷過") }
+
+        let at = Date(timeIntervalSince1970: TimeInterval(rc.at))
+        let name = item(rc.rid)?.name ?? "兌換品項"
+        try context.transaction {
+            context.insert(LedgerEntry(userID: user, amount: -rc.amt, reason: "兌換：\(name)",
+                                       referenceType: "redemption", referenceID: rc.rdm,
+                                       expiresAt: Self.campaignEnd, createdAt: now()))
+            // 同步一筆成功紀錄，旅客這支手機的儀表板與商家紀錄才看得到這次核銷；用完成碼的交易 id 當冪等鍵
+            context.insert(Redemption(idempotencyKey: "receipt|\(rc.rdm)", userID: user, merchantID: rc.mid, rewardID: rc.rid,
+                                      rewardName: name, coinAmount: rc.amt, status: "success", tokenID: tok.id, redeemedAt: at))
+            tok.usedAt = at
+            audit(user, "redeem_receipt", "redemption", rc.rdm, "\(name) −\(rc.amt)（回掃店家完成碼）")
+        }
+        return (tok, false)
+    }
+
+    /// 還沒用掉、24 小時內產生的兌換碼都可能已在別支手機核銷，旅客端要留著回掃入口
+    func awaitingReceipt(for user: String) -> [RedemptionToken] {
+        let since = now().addingTimeInterval(-Self.receiptTTL)
+        let d = FetchDescriptor<RedemptionToken>(predicate: #Predicate { $0.userID == user && $0.usedAt == nil && $0.createdAt >= since })
+        return (try? context.fetch(d)) ?? []
     }
 
     // MARK: 稽核

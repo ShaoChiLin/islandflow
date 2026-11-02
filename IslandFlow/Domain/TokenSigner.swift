@@ -13,11 +13,39 @@ struct StationToken: Codable, Equatable {
     var nonce: String
 }
 
-/// 兌換碼：只放憑證 id 與到期時間，品項與扣點一律以伺服端（這裡是本機資料庫）為準。
+/// 兌換碼。v1 只放憑證 id 與到期時間，品項與扣點以本機資料庫為準，只能在產生它的同一支手機核銷。
+/// v2 另外簽進旅客、品項、店家與點數：沒有後端時，另一支手機的商家端只能靠簽章相信這些內容（K30）。
 struct RedeemToken: Codable, Equatable {
     var v = 1
     var p = "redeem"
     var tid: String
+    var exp: Int
+    var uid: String?
+    var rid: String?
+    var mid: String?
+    var amt: Int?
+
+    /// 四個欄位都有才算能跨機核銷的碼；缺任何一個就當 v1 處理
+    var remote: (user: String, reward: String, merchant: String, amount: Int)? {
+        guard let uid, let rid, let mid, let amt else { return nil }
+        return (uid, rid, mid, amt)
+    }
+}
+
+/// 核銷完成碼：商家手機核銷「別支手機產生的兌換碼」後顯示，旅客手機回掃才扣自己的帳本。
+/// 兩支手機之間沒有連線，這張碼就是商家端「已經把東西交出去」的簽章證明。
+struct RedeemReceipt: Codable, Equatable {
+    var v = 1
+    var p = "redeemDone"
+    /// 旅客手機上的兌換憑證 id
+    var tid: String
+    /// 商家手機上的核銷交易 id，旅客端拿來當扣點的唯一鍵
+    var rdm: String
+    var uid: String
+    var rid: String
+    var mid: String
+    var amt: Int
+    var at: Int
     var exp: Int
 }
 
@@ -71,6 +99,12 @@ enum TokenSigner {
     static func verifyRedeem(_ token: String, now: Date = .now) throws -> RedeemToken {
         let t = try verify(token, as: RedeemToken.self, now: now) { $0.exp }
         guard t.p == "redeem" else { throw TokenError.wrongPurpose }
+        return t
+    }
+
+    static func verifyReceipt(_ token: String, now: Date = .now) throws -> RedeemReceipt {
+        let t = try verify(token, as: RedeemReceipt.self, now: now) { $0.exp }
+        guard t.p == "redeemDone" else { throw TokenError.wrongPurpose }
         return t
     }
 

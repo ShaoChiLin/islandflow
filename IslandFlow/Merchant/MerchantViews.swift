@@ -53,6 +53,9 @@ struct ScanRedeemView: View {
                             .buttonStyle(.borderedProminent)
                             .disabled(code.count != 6)
                     }
+                    if !QRScannerView.hasCamera {
+                        PasteCodeButton { lookup($0) }
+                    }
                     if let error { ErrorBanner(message: error) }
                     pendingDemo
                 }
@@ -128,12 +131,19 @@ struct RedeemConfirmSheet: View {
     var body: some View {
         let service = FlowService(context: context)
         NavigationStack {
+            // 跨機核銷的成功畫面多了完成碼，小螢幕放不下要能捲動
+            ScrollView {
             VStack(spacing: 16) {
                 if let done {
-                    Image(systemName: "checkmark.seal.fill").font(.system(size: 72)).foregroundStyle(Color.brand)
+                    Image(systemName: "checkmark.seal.fill").font(.system(size: service.needsReceipt(done) ? 48 : 72)).foregroundStyle(Color.brand)
                     Text("核銷成功").font(.title.bold()).accessibilityIdentifier("merchant-success")
                     Text("請將「\(done.rewardName)」交給旅客").font(.headline)
-                    Text("已扣 \(done.coinAmount) 枚・交易編號 \(done.id.prefix(8))").font(.caption.monospaced()).foregroundStyle(.secondary)
+                    if service.needsReceipt(done) {
+                        ReceiptCodeCard(payload: service.receiptPayload(for: done), amount: done.coinAmount)
+                        Text("交易編號 \(done.id.prefix(8))").font(.caption.monospaced()).foregroundStyle(.secondary)
+                    } else {
+                        Text("已扣 \(done.coinAmount) 枚・交易編號 \(done.id.prefix(8))").font(.caption.monospaced()).foregroundStyle(.secondary)
+                    }
                     if let replayNote {
                         Label(replayNote, systemImage: "arrow.triangle.2.circlepath")
                             .font(.subheadline).foregroundStyle(.orange)
@@ -149,7 +159,7 @@ struct RedeemConfirmSheet: View {
                         .buttonStyle(.bordered)
                         Button {
                             do {
-                                _ = try service.preview(input: service.payload(for: preview.token), merchantID: merchantID)
+                                _ = try service.preview(input: preview.payload, merchantID: merchantID)
                             } catch {
                                 replayNote = "再掃一次同一張碼：\(error.localizedDescription)"
                             }
@@ -166,8 +176,10 @@ struct RedeemConfirmSheet: View {
                     Text(preview.item.name).font(.title.bold())
                     CoinLabel(amount: preview.item.coinCost, font: .title2)
                     Text("庫存剩 \(preview.item.stock) 份").font(.subheadline).foregroundStyle(.secondary)
-                    CountdownText(until: preview.token.expiresAt).font(.subheadline)
-                    Text("確認後才會扣旅客的點數，這張兌換碼也會同時失效。")
+                    CountdownText(until: preview.expiresAt).font(.subheadline)
+                    Text(preview.remote == nil
+                         ? "確認後才會扣旅客的點數，這張兌換碼也會同時失效。"
+                         : "這張碼來自旅客自己的手機。確認後畫面會出現完成碼，請旅客回掃，點數在旅客手機上扣除。")
                         .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
                     if let error { ErrorBanner(message: error) }
                     Spacer()
@@ -178,6 +190,7 @@ struct RedeemConfirmSheet: View {
                 Spacer(minLength: 0)
             }
             .padding()
+            }
             .navigationTitle("核銷確認")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
@@ -188,7 +201,8 @@ struct RedeemConfirmSheet: View {
 
     private func confirm(_ service: FlowService) {
         do {
-            let (r, replayed) = try service.confirm(tokenID: preview.token.id, merchantID: merchantID, idempotencyKey: idempotencyKey)
+            let (r, replayed) = try service.confirm(tokenID: preview.tokenID, merchantID: merchantID,
+                                                     idempotencyKey: idempotencyKey, remote: preview.remote)
             if replayed {
                 replayNote = "偵測到重送：沿用第一次的結果，沒有重複扣點或扣庫存"
             } else {
@@ -202,12 +216,49 @@ struct RedeemConfirmSheet: View {
     }
 }
 
+/// 跨機核銷完成後給旅客回掃的碼。兩支手機沒有連線，旅客那邊要靠這張碼才知道店家已經核銷
+struct ReceiptCodeCard: View {
+    let payload: String
+    let amount: Int
+
+    var body: some View {
+        VStack(spacing: 8) {
+            Text("請旅客掃這個完成碼").font(.headline)
+            QRCodeView(text: payload)
+                .frame(maxWidth: 220)
+                .accessibilityIdentifier("merchant-receipt-qr")
+            Text("旅客在自己手機的兌換畫面按「掃店家完成碼」，回掃後才會扣 \(amount) 枚。完成碼 24 小時內有效。")
+                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .padding(14)
+        .background(Color.brand.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+    }
+}
+
+/// 模擬器沒有相機：開發時用 `simctl pbcopy` 把另一台模擬器的碼放進剪貼簿再貼上。實機有相機就不顯示
+struct PasteCodeButton: View {
+    var onCode: (String) -> Void
+
+    var body: some View {
+        Button {
+            if let s = UIPasteboard.general.string { onCode(s) }
+        } label: {
+            Label("從剪貼簿貼上碼（模擬器沒有相機）", systemImage: "doc.on.clipboard")
+                .font(.subheadline)
+        }
+        .buttonStyle(.bordered)
+        .accessibilityIdentifier("paste-code")
+    }
+}
+
 // MARK: M04 核銷紀錄
 
 struct RedemptionLogView: View {
     let merchantID: String
+    @Environment(\.modelContext) private var context
     @Query private var records: [Redemption]
     @State private var todayOnly = true
+    @State private var receiptFor: Redemption?
 
     init(merchantID: String) {
         self.merchantID = merchantID
@@ -252,13 +303,25 @@ struct RedemptionLogView: View {
                             }
                         }
                         Spacer()
-                        Text(r.isSuccess ? "−\(r.coinAmount)" : "未扣點").font(.subheadline).monospacedDigit()
-                            .foregroundStyle(.secondary)
+                        VStack(alignment: .trailing, spacing: 4) {
+                            Text(r.isSuccess ? "−\(r.coinAmount)" : "未扣點").font(.subheadline).monospacedDigit()
+                                .foregroundStyle(.secondary)
+                            // 旅客當下沒回掃，事後還能從紀錄叫出完成碼
+                            if FlowService(context: context).needsReceipt(r) {
+                                Button("完成碼") { receiptFor = r }
+                                    .font(.caption).buttonStyle(.bordered)
+                            }
+                        }
                     }
                 }
             }
             .navigationTitle("核銷紀錄")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { AccountMenu() } }
+            .sheet(item: $receiptFor) { r in
+                ReceiptCodeCard(payload: FlowService(context: context).receiptPayload(for: r), amount: r.coinAmount)
+                    .padding()
+                    .presentationDetents([.medium, .large])
+            }
         }
     }
 }
