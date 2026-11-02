@@ -28,7 +28,7 @@ innoserve 黑客松概念驗證 App。正式名稱「旅綠」，點數叫「旅
 
 ## 架構
 
-- `Domain/`：純邏輯，不碰 SwiftData，全部有單元測試（`RewardEngine`、`TokenSigner`、`DashboardMetrics`、`Geo`/`CarbonEstimator`/`TransportEmission`、`OpenData`、`TripAvailability`、`CSV`、`RouteCatalog`）
+- `Domain/`：純邏輯，不碰 SwiftData，全部有單元測試（`RewardEngine`、`TokenSigner`、`DashboardMetrics`、`Geo`/`TransportEmission`、`OpenData`、`TripAvailability`、`CSV`、`RouteCatalog`）
 - 唯讀路線目錄（`RouteCatalog`＋`Services/RouteCatalogStore`）存成 Application Support 的 JSON，**不寫進 SwiftData／`RouteStop`**；匯入路線不等於開任務。全台 CSV 一律用 `CSV.parse`，不要用 `OpenData.csvRows` 的 `split(",")`
 - 新路線要先在 `RouteCatalog.localIDs` 配本地穩定 ID；錯誤座標與重複站序保留原值、不自動修正
 - `Services/FlowService`：**所有會改資料的動作只能經過這裡**（加入、驗證、入帳、產生兌換碼、核銷）。畫面不直接寫 `LedgerEntry`／`Checkin`／`Redemption`
@@ -46,7 +46,7 @@ innoserve 黑客松概念驗證 App。正式名稱「旅綠」，點數叫「旅
 - 註解用繁體中文，只寫「為什麼」
 - 模擬、估算的數字要標示範（規格書硬性要求）。旅客首頁常駐 `DemoModeNotice`，班次標「示範班次」、`ComfortChip` 自帶「預估」、虛構店家用 `Merchant.demoTag`；D14「首頁不放標籤」已被 D19 取代
 - 店家營業時間沒有核實來源，不能判斷「現在營業中」；兌換狀態只寫「點數足夠」
-- 減碳：旅客端只顯示實際搭車估算（`TransportEmission`），沒有自填基準前不算減碳量；差值保留正負、缺值是未知不是 0
+- 減碳：旅客端與管理端儀表板都只顯示實際搭車估算（`TransportEmission`，D24／D30），沒有自填基準前不算減碳量；差值保留正負、缺值是未知不是 0
 - App 沒有班表／到站時間：不要編時間，寫「請查官方時刻」並給 `OfficialInfo.taiwanTripURL`
 - 旅綠幣是活動點數，文案不能暗示可兌現、轉讓
 - 規格書禁止：區塊鏈、真實金流、宣稱碳權、把規則包裝成 AI 預測
