@@ -6,7 +6,6 @@ struct MetricAssumptions: Equatable {
     var incrementalRideRatio = 0.35
     var avgLocalSpendNTD = 180.0
     var diversionBaseline = 40
-    var carFactor = 0.115
     var busFactor = 0.040
 
     init() {}
@@ -16,7 +15,6 @@ struct MetricAssumptions: Equatable {
         incrementalRideRatio = c.incrementalRideRatio
         avgLocalSpendNTD = c.avgLocalSpendNTD
         diversionBaseline = c.diversionBaseline
-        carFactor = c.carFactor
         busFactor = c.busFactor
     }
 }
@@ -62,7 +60,11 @@ struct DashboardMetrics {
     var offPeakShare: Double?
     var diversionVisits = 0
     var diversionBaseline = 0
-    var avoidedKg = 0.0
+    /// 完成任務的搭公車排放估算加總（kgCO₂e）。和旅客端同一套 TransportEmission；不算減碳（K21）
+    var busEmissionKg = 0.0
+    var emissionEstimatedSegments = 0
+    /// 缺距離或係數、算不出來的段落；未知不是 0，所以不加進總和
+    var emissionUnknownSegments = 0
     var liveCompletions = 0
     var liveRedemptions = 0
     var daily: [DailyPoint] = []
@@ -98,8 +100,15 @@ struct DashboardMetrics {
         m.offPeakShare = done.isEmpty ? nil : Double(done.filter(\.isOffPeak).count) / Double(done.count)
         m.diversionVisits = done.filter(\.toDiversionTarget).count
         m.diversionBaseline = a.diversionBaseline
-        m.avoidedKg = done.reduce(0) {
-            $0 + CarbonEstimator.avoidedKg(distanceKm: $1.distanceKm, carFactor: a.carFactor, busFactor: a.busFactor)
+        // 原交通方式還沒蒐集（P0-C），所以只加總實際搭公車的排放，不和開車比
+        let bus = EmissionFactor(kgPerKm: a.busFactor, unit: .perPassengerKm, source: nil, isDemo: true)
+        for p in done {
+            if let kg = TransportEmission.perPersonKg(distanceKm: p.distanceKm > 0 ? p.distanceKm : nil, factor: bus) {
+                m.busEmissionKg += kg
+                m.emissionEstimatedSegments += 1
+            } else {
+                m.emissionUnknownSegments += 1
+            }
         }
 
         let today = calendar.startOfDay(for: now)

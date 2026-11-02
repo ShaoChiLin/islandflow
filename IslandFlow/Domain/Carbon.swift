@@ -22,14 +22,6 @@ enum Geo {
     }
 }
 
-/// 估算避免排放量。這不是碳權，只是「如果這位旅客原本開車」的情境估算。
-/// 管理端儀表板仍用這條（K21）：對所有完成者套自用車基準、負值截零，改版方針 P0-C 要換成下方的 TransportEmission。
-enum CarbonEstimator {
-    static func avoidedKg(distanceKm: Double, carFactor: Double, busFactor: Double) -> Double {
-        max(0, distanceKm * (carFactor - busFactor))
-    }
-}
-
 enum EmissionFactorUnit: String, Codable {
     /// 每人公里：公車這類已攤到每位乘客的係數，不可再除載客率或同車人數
     case perPassengerKm

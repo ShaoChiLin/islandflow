@@ -39,7 +39,7 @@ struct DashboardView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     HStack(alignment: .top) {
-                        Text("含過去 14 天模擬歷史＋本機即時操作。成本、新增搭乘、地方消費與減碳皆依情境假設估算，不是實測成果。")
+                        Text("含過去 14 天模擬歷史＋本機即時操作。成本、新增搭乘、地方消費與交通排放皆依情境假設估算，不是實測成果。")
                             .font(.caption).foregroundStyle(.secondary)
                         DemoBadge()
                     }
@@ -59,7 +59,7 @@ struct DashboardView: View {
                         StatTile(title: "離峰占比", value: Fmt.pct(m.offPeakShare), caption: "離峰完成 ÷ 全部完成")
                         StatTile(title: "分流達成", value: "\(m.diversionDelta >= 0 ? "+" : "")\(m.diversionDelta) 人次",
                                  caption: "分流站到訪 \(m.diversionVisits)，基準 \(m.diversionBaseline)")
-                        StatTile(title: "估算避免排放", value: Fmt.kg(m.avoidedKg), caption: "非碳權，情境估算")
+                        StatTile(title: "搭公車排放估算", value: EmissionText.kg(m.busEmissionKg), caption: emissionCaption(m))
                         StatTile(title: "兌換率", value: Fmt.pct(m.redemptionRate), caption: "已核銷人數 ÷ 完成人數")
                     }
 
@@ -89,6 +89,11 @@ struct DashboardView: View {
             .navigationTitle("政策效益")
             .toolbar { ToolbarItem(placement: .topBarTrailing) { AccountMenu() } }
         }
+    }
+
+    private func emissionCaption(_ m: DashboardMetrics) -> String {
+        let unknown = m.emissionUnknownSegments > 0 ? "，\(m.emissionUnknownSegments) 段無法估算" : ""
+        return "完成 \(m.emissionEstimatedSegments) 段加總\(unknown)；不算減碳"
     }
 
     private func liveStrip(_ m: DashboardMetrics) -> some View {
@@ -207,6 +212,6 @@ struct MetricDefinitions: View {
         ("政策槓桿", "地方消費帶動 ÷ 獎勵成本"),
         ("離峰占比", "離峰完成任務數 ÷ 全部完成任務數"),
         ("分流達成", "指定分流站點到訪數 − 基準值"),
-        ("估算避免排放量", "路線距離 ×（自用車係數 − 公車係數），以自用小客車為比較基準；不是碳權"),
+        ("搭公車排放估算", "每段完成任務的路線距離 × 公車係數（每人公里）後加總，和旅客端同一算法。原本的交通方式還沒蒐集，所以不計算減碳，也不是碳權；距離缺值的段落列為無法估算，不當 0"),
     ]
 }
