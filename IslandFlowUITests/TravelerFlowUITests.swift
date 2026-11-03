@@ -39,9 +39,9 @@ final class TravelerFlowUITests: XCTestCase {
         primary.tap()
         XCTAssertTrue(app.buttons["demo-scan-valid"].waitForExistence(timeout: 5))
         app.buttons["demo-scan-valid"].tap()
-        XCTAssertTrue(app.buttons["checkin-continue"].waitForExistence(timeout: 5))
-        app.buttons["checkin-continue"].tap()
-        waitForLabel(primary, "掃描到站碼")
+        // D35：站牌碼模式也是上車驗證就入帳
+        XCTAssertTrue(app.staticTexts["checkin-reward"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["checkin-reward"].label, "已獲得 100 枚")
     }
 
     /// 旅客：探索 → 加入 → 出發碼 → 到站碼 → 完成後兩次點擊拿到兌換 QR
@@ -74,20 +74,9 @@ final class TravelerFlowUITests: XCTestCase {
         let confirmBoarding = app.buttons["driver-confirm"]
         XCTAssertTrue(confirmBoarding.waitForExistence(timeout: 5))
         confirmBoarding.tap()
-        XCTAssertTrue(app.buttons["checkin-continue"].waitForExistence(timeout: 5))
-        // 出發成功畫面的標題不能提前變成「到站驗證」
-        XCTAssertTrue(app.navigationBars["出發驗證完成"].exists)
-        XCTAssertFalse(app.navigationBars["到站驗證"].exists)
-        app.buttons["checkin-continue"].tap()
-
-        waitForLabel(primary, "下車出示票券")
-        primary.tap()
-        // 下車沿用同一張票券，不用再輸入序號
-        XCTAssertTrue(app.descendants(matching: .any)["boarding-pass-qr"].waitForExistence(timeout: 5))
-        app.buttons["demo-driver-scan"].tap()
-        XCTAssertTrue(app.buttons["driver-confirm"].waitForExistence(timeout: 5))
-        app.buttons["driver-confirm"].tap()
+        // D35：上車驗證通過就入帳，下車不用掃
         XCTAssertTrue(app.staticTexts["checkin-reward"].waitForExistence(timeout: 5))
+        XCTAssertTrue(app.navigationBars["上車驗證完成"].exists)
         XCTAssertEqual(app.staticTexts["checkin-reward"].label, "已獲得 100 枚")
         snap("04-任務完成")
 

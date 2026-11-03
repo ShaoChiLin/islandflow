@@ -110,7 +110,7 @@ struct MyTripsView: View {
             Text("\(dep) 從\(from)出發・\(m.title)").font(.subheadline).foregroundStyle(.secondary)
             StepRow(n: 1, title: copy.stepTitle(.depart, stop: from),
                     detail: p.departedAt.map { "已完成 \(Fmt.time($0))" } ?? copy.stepHint(.depart, departure: dep), done: p.statusValue != .joined)
-            StepRow(n: 2, title: copy.stepTitle(.arrive, stop: to), detail: copy.stepHint(.arrive, departure: dep), done: false)
+            StepRow(n: 2, title: "領 \(p.rewardAmount) 枚，到「\(to)」兌換", detail: "上車驗證通過就自動入帳，下車不用掃", done: false)
             Button {
                 scanning = p
             } label: {

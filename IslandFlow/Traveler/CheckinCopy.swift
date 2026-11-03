@@ -1,6 +1,6 @@
 import Foundation
 
-/// 上下車驗證的旅客端文案。兩種方式（D33／D34）共用同一套流程，只有「誰掃誰」不同，
+/// 上車驗證的旅客端文案（D35 起下車不用掃）。兩種方式（D33／D34）共用同一套流程，只有「誰掃誰」不同，
 /// 集中在這裡才不會有畫面還寫「掃站牌」而實際是司機掃碼。
 struct CheckinCopy {
     let mode: CheckinMode
@@ -9,7 +9,7 @@ struct CheckinCopy {
         switch (mode, stage) {
         case (.driver, .depart): "在「\(stop)」上車，出示票券給司機掃"
         case (.driver, .arrive): "到「\(stop)」下車，再出示一次"
-        case (.station, .depart): "在「\(stop)」掃出發碼"
+        case (.station, .depart): "在「\(stop)」上車前掃站牌碼"
         case (.station, .arrive): "到「\(stop)」掃到站碼"
         }
     }
@@ -42,7 +42,7 @@ struct CheckinCopy {
     }
 
     var ruleNote: String {
-        mode == .driver ? "上下車都出示同一張電子票券 QR Code 給司機掃描" : "站牌上的碼每 30 秒更新，請現場掃描"
+        mode == .driver ? "上車時出示電子票券 QR Code 給司機掃描，驗證通過就入帳，下車不用掃" : "站牌上的碼每 30 秒更新，上車前現場掃描，驗證通過就入帳"
     }
 
     var cannotCancelNote: String {

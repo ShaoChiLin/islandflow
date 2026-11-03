@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import SwiftData
 import Charts
 
@@ -87,7 +88,20 @@ struct DashboardView: View {
             }
             .background(Color(uiColor: .systemGroupedBackground))
             .navigationTitle("政策效益")
-            .toolbar { ToolbarItem(placement: .topBarTrailing) { AccountMenu() } }
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    ShareLink(item: DashboardWorkbook(metrics: m, assumptions: MetricAssumptions(FlowService(context: context).rules())),
+                              preview: SharePreview("旅綠政策效益儀表板.xlsx")) {
+                        // 工具列會把 Label 收成只剩圖示，手組才能保證「匯出 Excel」字樣一直在
+                        HStack(spacing: Space.xs) {
+                            Image(systemName: "square.and.arrow.up")
+                            Text("匯出 Excel")
+                        }
+                    }
+                    .accessibilityIdentifier("export-excel")
+                }
+                ToolbarItem(placement: .topBarTrailing) { AccountMenu() }
+            }
         }
     }
 
@@ -214,4 +228,23 @@ struct MetricDefinitions: View {
         ("分流達成", "指定分流站點到訪數 − 基準值"),
         ("搭公車排放估算", "每段完成任務的路線距離 × 公車係數（每人公里）後加總，和旅客端同一算法。原本的交通方式還沒蒐集，所以不計算減碳，也不是碳權；距離缺值的段落列為無法估算，不當 0"),
     ]
+}
+
+/// 儀表板匯出 Excel（D36）：按下分享時才產生檔案，放在暫存資料夾
+struct DashboardWorkbook: Transferable {
+    var metrics: DashboardMetrics
+    var assumptions: MetricAssumptions
+
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .xlsx) { wb in
+            let now = Date()
+            let url = FileManager.default.temporaryDirectory.appendingPathComponent(DashboardExport.fileName(at: now))
+            try DashboardExport.data(wb.metrics, assumptions: wb.assumptions, exportedAt: now).write(to: url, options: .atomic)
+            return SentTransferredFile(url)
+        }
+    }
+}
+
+extension UTType {
+    static var xlsx: UTType { UTType("org.openxmlformats.spreadsheetml.sheet") ?? .data }
 }

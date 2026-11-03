@@ -24,8 +24,8 @@ final class FlowIntegrationTests: XCTestCase {
 
     private func complete(_ m: Mission, user: String) throws -> Participation {
         let (p, _) = try service.join(mission: m, user: user)
+        // D35：上車驗證通過就完成任務
         _ = try service.checkIn(raw: token(m, stop: m.startStopSeq), participation: p, method: "demo")
-        _ = try service.checkIn(raw: token(m, stop: m.endStopSeq), participation: p, method: "demo")
         return p
     }
 
@@ -75,7 +75,7 @@ final class FlowIntegrationTests: XCTestCase {
     func testArriveBeforeDepartRejected() throws {
         let (p, _) = try service.join(mission: missionA, user: user)
         XCTAssertThrowsError(try service.checkIn(raw: token(missionA, stop: 9), participation: p, method: "demo")) {
-            XCTAssertTrue(($0 as? FlowError)?.message.contains("還沒完成出發驗證") ?? false)
+            XCTAssertTrue(($0 as? FlowError)?.message.contains("上車時掃描") ?? false)
         }
         XCTAssertEqual(p.statusValue, .joined)
     }
@@ -95,6 +95,7 @@ final class FlowIntegrationTests: XCTestCase {
         let p = try complete(missionA, user: user)
         XCTAssertEqual(p.statusValue, .completed)
         XCTAssertEqual(service.balance(for: user), 100)
+        XCTAssertThrowsError(try service.checkIn(raw: token(missionA, stop: 1), participation: p, method: "demo"))
         XCTAssertThrowsError(try service.checkIn(raw: token(missionA, stop: 9), participation: p, method: "demo"))
         XCTAssertEqual(service.balance(for: user), 100)
         XCTAssertEqual(service.ledger(for: user).count, 1)
@@ -103,15 +104,15 @@ final class FlowIntegrationTests: XCTestCase {
     func testLocationCheck() throws {
         service.rules().requireLocation = true
         let (p, _) = try service.join(mission: missionA, user: user)
-        _ = try service.checkIn(raw: token(missionA, stop: 1), participation: p, method: "demo")
-        // 在捷運北投站，離竹子湖太遠
-        XCTAssertThrowsError(try service.checkIn(raw: token(missionA, stop: 9), participation: p, method: "demo",
-                                                 location: .init(lat: 25.132265, lon: 121.49798))) {
+        // D35：定位檢查移到上車站。人在竹子湖、離捷運北投站太遠
+        let far = service.stop(9)!
+        XCTAssertThrowsError(try service.checkIn(raw: token(missionA, stop: 1), participation: p, method: "demo",
+                                                 location: .init(lat: far.lat, lon: far.lon))) {
             XCTAssertEqual(($0 as? FlowError)?.kind, .location)
         }
-        let dest = service.stop(9)!
-        let r = try service.checkIn(raw: token(missionA, stop: 9), participation: p, method: "demo",
-                                    location: .init(lat: dest.lat + 0.001, lon: dest.lon))
+        let start = service.stop(1)!
+        let r = try service.checkIn(raw: token(missionA, stop: 1), participation: p, method: "demo",
+                                    location: .init(lat: start.lat + 0.001, lon: start.lon))
         XCTAssertEqual(r.coinsAwarded, 100)
     }
 

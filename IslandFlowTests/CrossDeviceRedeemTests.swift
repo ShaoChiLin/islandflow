@@ -24,8 +24,8 @@ final class CrossDeviceRedeemTests: XCTestCase {
     private func earnCoins() throws {
         let m = a.mission("M-A")!
         let (p, _) = try a.join(mission: m, user: user)
+        // D35：上車驗證就入帳
         _ = try a.checkIn(raw: a.currentStationToken(trip: m.tripID, stop: m.startStopSeq), participation: p, method: "demo")
-        _ = try a.checkIn(raw: a.currentStationToken(trip: m.tripID, stop: m.endStopSeq), participation: p, method: "demo")
     }
 
     private func redemptions(_ c: ModelContainer, status: String) throws -> [Redemption] {

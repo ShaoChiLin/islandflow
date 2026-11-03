@@ -146,7 +146,7 @@ struct WelcomeView: View {
 
             VStack(alignment: .leading, spacing: Space.m) {
                 WelcomeStep(icon: "bus.fill", text: "選一班比較空的車，獎勵更多")
-                WelcomeStep(icon: "qrcode.viewfinder", text: "上車、下車各驗證一次")
+                WelcomeStep(icon: "qrcode.viewfinder", text: "上車時驗證一次就入帳")
                 WelcomeStep(icon: "basket.fill", text: "到沿線小農店家換好物")
             }
             // 下方留白先給旅綠驢，上方 Spacer 拿剩下的；到上限就不再長大
@@ -314,7 +314,7 @@ struct DemoMenuSheet: View {
                         Label("掃碼頁顯示「模擬掃描」", systemImage: "qrcode")
                     }
                     Toggle(isOn: driverMode) {
-                        Label("上下車由司機掃票券 QR", systemImage: "bus")
+                        Label("上車由司機掃票券 QR", systemImage: "bus")
                     }
                     .accessibilityIdentifier("checkin-mode-toggle")
                     Button {

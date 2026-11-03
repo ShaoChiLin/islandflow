@@ -1,9 +1,9 @@
 import SwiftUI
 import SwiftData
 
-// MARK: D33／D34 司機驗票
+// MARK: D33／D34／D35 司機驗票
 
-/// 司機掃旅客出示的票券 QR（D34：旅客先輸入購票序號才會出現）。同一張票掃第一次是上車、第二次是下車。
+/// 司機掃旅客出示的票券 QR（D34：旅客先輸入購票序號才會出現）。D35 起上車驗票通過就入帳。
 /// 展示版只支援同一支手機：任務與帳本都在本機，別支手機的票券會查無乘客。
 struct DriverRoot: View {
     let account: DemoAccount
