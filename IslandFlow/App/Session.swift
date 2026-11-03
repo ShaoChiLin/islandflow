@@ -17,7 +17,7 @@ enum Role: String {
     static let menuOrder: [Role] = [.traveler, .driver, .merchant, .admin]
 }
 
-/// 上下車怎麼驗證（D33）。預設司機掃旅客的乘車碼；站牌動態碼保留，兩支手機展示或司機端出狀況時切回去
+/// 上下車怎麼驗證（D33／D34）。預設旅客輸入購票序號、出示票券 QR，司機掃描；站牌動態碼保留，兩支手機展示或司機端出狀況時切回去
 enum CheckinMode: String {
     case driver, station
 }

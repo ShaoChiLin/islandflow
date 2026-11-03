@@ -8,6 +8,8 @@ import MapKit
 
 enum OfficialInfo {
     static let taiwanTripURL = URL(string: "https://www.taiwantrip.com.tw/Frontend/")!
+    /// 台灣好行官網「超值套票」臺北市頁，列出北投竹子湖線的套票與販售通路（2026-11-04 確認）
+    static let ticketURL = URL(string: "https://www.taiwantrip.com.tw/Frontend/Reservation/Index/City000002")!
     static let stopsDatasetName = "觀光署開放資料 93967「台灣好行站點」"
     /// App 內附北投竹子湖線站點 CSV 的取得日期
     static let bundledStopsRetrieved = "2026-09"
@@ -109,9 +111,32 @@ struct BoardingInfoCard: View {
                 }
                 .accessibilityIdentifier("official-timetable")
             }
+            BuyTicketLink()
             Text("站點座標取自\(OfficialInfo.stopsDatasetName)。本 App 沒有班表與即時到站資料。")
                 .font(.caption2).foregroundStyle(.secondary)
         }
+    }
+}
+
+/// 「我要購票」：App 不賣票，直接開台灣好行官網的套票頁
+struct BuyTicketLink: View {
+    var body: some View {
+        Link(destination: OfficialInfo.ticketURL) {
+            HStack(spacing: Space.m) {
+                Image(systemName: "ticket").font(.title3)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("我要購票").font(.subheadline.weight(.semibold))
+                    Text("台灣好行官網・北投竹子湖線超值套票").font(.caption).foregroundStyle(.secondary)
+                }
+                Spacer()
+                Image(systemName: "arrow.up.right.square").foregroundStyle(.secondary)
+            }
+            .padding(Space.m)
+            .frame(maxWidth: .infinity, minHeight: 44)
+            .background(Color.brand.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+        }
+        .accessibilityHint("開啟台灣好行官網")
+        .accessibilityIdentifier("buy-ticket")
     }
 }
 

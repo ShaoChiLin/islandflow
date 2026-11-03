@@ -326,12 +326,10 @@ final class FlowService {
         return CheckinResult(stage: stage, stopName: stopName(stopSeq), coinsAwarded: awarded)
     }
 
-    // MARK: D33 司機掃旅客乘車碼
+    // MARK: D34 旅客輸入購票序號、出示票券 QR，司機掃描（取代 D33 的動態乘車碼）
 
     /// 展示版沒有票務系統可以查，只接受這組序號；正式版改向售票通路或票證公司查驗
     static let demoTicketSerial = "20261107"
-    /// 司機掃到碼之後還要輸入購票序號，給一點打字時間；掃描當下碼必須有效
-    static let boardingConfirmWindow: TimeInterval = 300
 
     struct BoardingPreview {
         var pass: BoardingPass
@@ -343,28 +341,53 @@ final class FlowService {
         var departure: String
     }
 
-    /// 旅客出示的乘車碼。階段在產生當下決定，所以上車後舊的碼拿去下車驗票會被擋
-    func boardingPassPayload(for p: Participation, now at: Date? = nil) -> String? {
-        guard let stage = expectedStage(p), let m = mission(p.missionID) else { return nil }
-        return TokenSigner.boardingPass(pid: p.id, uid: p.userID, trip: m.tripID, stage: stage.rawValue,
-                                        ttl: rules().stationTokenTTL, now: at ?? now())
+    /// 旅客輸入購票序號，「找出」這張票券。序號沒有自己的欄位（不改資料模型），記在稽核紀錄
+    func bindTicket(serial raw: String, participation p: Participation) throws {
+        let s = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !s.isEmpty else { throw FlowError.msg("請輸入購票序號") }
+        guard s == Self.demoTicketSerial else {
+            throw FlowError.msg("查無購票序號「\(s)」。展示版只接受展示序號 \(Self.demoTicketSerial)")
+        }
+        guard expectedStage(p) != nil else { throw FlowError.msg("任務已完成，不需要再出示票券") }
+        audit(p.userID, "ticket_bind", "participation", p.id, "購票序號 \(s)")
+        try context.save()
     }
 
-    /// 司機掃到乘車碼後先看內容，確認乘客、班次與要驗哪一段
-    func boardingPreview(raw: String, scannedAt: Date? = nil) throws -> BoardingPreview {
-        let pass = try TokenSigner.verifyBoarding(raw, now: scannedAt ?? now())
+    func ticketSerial(participationID: String) -> String? {
+        let action = "ticket_bind"
+        var d = FetchDescriptor<AuditLog>(predicate: #Predicate { $0.targetID == participationID && $0.action == action },
+                                          sortBy: [SortDescriptor(\.createdAt, order: .reverse)])
+        d.fetchLimit = 1
+        guard let detail = (try? context.fetch(d))?.first?.detail, let r = detail.range(of: "購票序號 ") else { return nil }
+        return String(detail[r.upperBound...])
+    }
+
+    /// 票券 QR 當天有效、內容固定，所以每次都是同一張碼；上下車要驗哪一段由任務進度決定
+    func boardingPassPayload(for p: Participation) -> String? {
+        guard expectedStage(p) != nil, let m = mission(p.missionID),
+              let serial = ticketSerial(participationID: p.id) else { return nil }
+        let cal = Calendar.current
+        let endOfDay = cal.date(byAdding: .day, value: 1, to: cal.startOfDay(for: now())) ?? now()
+        return TokenSigner.boardingPass(serial: serial, pid: p.id, uid: p.userID, trip: m.tripID,
+                                        exp: Int(endOfDay.timeIntervalSince1970))
+    }
+
+    /// 司機掃到票券 QR 後先看內容，確認乘客、班次、序號與要驗哪一段
+    func boardingPreview(raw: String) throws -> BoardingPreview {
+        let pass = try TokenSigner.verifyBoarding(raw, now: now())
         let pid = pass.pid
         guard let p = try context.fetch(FetchDescriptor<Participation>(predicate: #Predicate { $0.id == pid })).first,
               p.userID == pass.uid else {
-            throw FlowError.msg("查無這位乘客的任務。展示版只支援同一支手機：乘車碼要在這支手機上產生")
+            throw FlowError.msg("查無這位乘客的任務。展示版只支援同一支手機：票券要在這支手機上輸入")
         }
         guard let m = mission(p.missionID), let trip = trip(m.tripID) else { throw FlowError.msg("找不到任務資料") }
+        guard pass.trip == trip.id else { throw FlowError.msg("這張票券不是 \(trip.departure) 班次的任務") }
         guard !trip.isCancelled else { throw FlowError.msg("班次已取消") }
         guard let stage = expectedStage(p) else {
             throw FlowError.msg("任務已完成，旅綠幣已入帳，不會重複發放")
         }
-        guard pass.stage == stage.rawValue else {
-            throw FlowError.msg("這是上車用的乘車碼，乘客已經上車了。請乘客重新出示下車用的乘車碼")
+        guard pass.serial == ticketSerial(participationID: p.id) else {
+            throw FlowError.msg("乘客已更換票券序號，請重新出示")
         }
         if stage == .depart { try checkDepartWindow(trip) }
         let seq = stage == .depart ? m.startStopSeq : m.endStopSeq
@@ -373,42 +396,21 @@ final class FlowService {
                                stopName: stopName(seq), departure: trip.departure)
     }
 
-    /// 司機確認上車或下車。上車必須輸入購票序號；下車沿用上車時記下的序號
+    /// 司機確認上車或下車。同一張票券掃第一次是上車、第二次是下車，各只成功一次
     @discardableResult
-    func driverCheckIn(raw: String, ticketSerial: String, driverID: String, scannedAt: Date) throws -> CheckinResult {
+    func driverCheckIn(raw: String, driverID: String) throws -> CheckinResult {
         do {
-            guard scannedAt <= now().addingTimeInterval(5),
-                  now().timeIntervalSince(scannedAt) <= Self.boardingConfirmWindow else {
-                throw FlowError.msg("掃描已超過 \(Int(Self.boardingConfirmWindow / 60)) 分鐘，請重新掃乘客的乘車碼")
-            }
-            let pv = try boardingPreview(raw: raw, scannedAt: scannedAt)
-            var detail = "方式：司機掃乘車碼"
-            if pv.stage == .depart {
-                let s = ticketSerial.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !s.isEmpty else { throw FlowError.msg("請輸入購票序號") }
-                guard s == Self.demoTicketSerial else {
-                    throw FlowError.msg("查無購票序號「\(s)」。展示版只接受展示序號 \(Self.demoTicketSerial)")
-                }
-                detail += "・購票序號 \(s)"
-            }
+            let pv = try boardingPreview(raw: raw)
             let seq = pv.stage == .depart ? pv.mission.startStopSeq : pv.mission.endStopSeq
             return try recordCheckin(pv.participation, mission: pv.mission, stage: pv.stage, stopSeq: seq,
-                                     nonce: pv.pass.nonce, method: "driver", location: nil, distance: nil,
-                                     actor: driverID, detail: detail)
+                                     nonce: "ticket|\(pv.pass.serial)|\(pv.participation.id)", method: "driver",
+                                     location: nil, distance: nil, actor: driverID,
+                                     detail: "方式：司機掃票券 QR・購票序號 \(pv.pass.serial)")
         } catch let e as FlowError {
-            audit(driverID, "checkin_rejected", "boarding", (try? TokenSigner.verifyBoarding(raw, now: scannedAt))?.pid ?? "unknown", e.message)
+            audit(driverID, "checkin_rejected", "boarding", (try? TokenSigner.verifyBoarding(raw))?.pid ?? "unknown", e.message)
             try? context.save()
             throw e
         }
-    }
-
-    /// 購票序號沒有自己的欄位（不改資料模型），從上車那筆稽核紀錄讀回來
-    func ticketSerial(participationID: String) -> String? {
-        let action = "checkin_depart"
-        let logs = (try? context.fetch(FetchDescriptor<AuditLog>(
-            predicate: #Predicate { $0.targetID == participationID && $0.action == action }))) ?? []
-        guard let detail = logs.first?.detail, let r = detail.range(of: "購票序號 ") else { return nil }
-        return String(detail[r.upperBound...])
     }
 
     /// 以參加紀錄 id 當帳本唯一鍵，就算這段被呼叫兩次也只會入帳一次
