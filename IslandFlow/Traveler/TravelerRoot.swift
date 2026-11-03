@@ -221,6 +221,7 @@ private struct ActiveTripBanner: View {
     let participation: Participation
     let destination: String
     var onTap: () -> Void
+    @Environment(Session.self) private var session
 
     var body: some View {
         Button(action: onTap) {
@@ -232,7 +233,7 @@ private struct ActiveTripBanner: View {
                     .background(Color.brand, in: Circle())
                 VStack(alignment: .leading, spacing: 2) {
                     Text("進行中：前往\(destination)").font(.subheadline.weight(.semibold))
-                    Text(participation.statusValue == .joined ? "下一步：在起點掃出發碼" : "下一步：到站後掃到站碼")
+                    Text(CheckinCopy(mode: session.checkinMode).nextStep(participation.statusValue == .joined ? .depart : .arrive))
                         .font(.caption).foregroundStyle(.secondary)
                 }
                 Spacer()

@@ -49,6 +49,20 @@ struct RedeemReceipt: Codable, Equatable {
     var exp: Int
 }
 
+/// 乘車碼（D33）：旅客出示、司機掃描。綁定參加紀錄、旅客、班次與這次要驗的階段；
+/// 購票序號不放進碼裡，由司機掃完後輸入，旅客就沒辦法自己把序號簽進去。
+struct BoardingPass: Codable, Equatable {
+    var v = 1
+    var p = "boarding"
+    var pid: String
+    var uid: String
+    var trip: String
+    var stage: String
+    var iat: Int
+    var exp: Int
+    var nonce: String
+}
+
 enum TokenError: LocalizedError, Equatable {
     case malformed, badSignature, wrongPurpose, expired
 
@@ -116,6 +130,20 @@ enum TokenSigner {
         let bucket = t - t % rotation
         return sign(StationToken(route: route, trip: trip, stop: stop, iat: bucket, exp: bucket + ttl,
                                  nonce: "\(trip)-\(stop)-\(bucket)"))
+    }
+
+    static func verifyBoarding(_ token: String, now: Date = .now) throws -> BoardingPass {
+        let t = try verify(token, as: BoardingPass.self, now: now) { $0.exp }
+        guard t.p == "boarding" else { throw TokenError.wrongPurpose }
+        return t
+    }
+
+    /// 乘車碼和站牌碼一樣每 30 秒換一次，截圖轉傳很快就失效
+    static func boardingPass(pid: String, uid: String, trip: String, stage: String, ttl: Int, now: Date = .now) -> String {
+        let t = Int(now.timeIntervalSince1970)
+        let bucket = t - t % rotation
+        return sign(BoardingPass(pid: pid, uid: uid, trip: trip, stage: stage, iat: bucket, exp: bucket + ttl,
+                                 nonce: "\(pid)-\(stage)-\(bucket)"))
     }
 
     /// 給商家手動輸入用的 6 位數短碼。由金鑰推導而不是亂數，資料庫只需存雜湊。

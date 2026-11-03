@@ -16,6 +16,8 @@ struct CheckinSheet: View {
     @State private var lastRaw: String?
     @State private var lastMethod = "camera"
     @State private var locator = LocationProvider()
+    /// 「模擬司機掃描」按下當時的乘車碼；之後畫面上的碼會繼續換新，司機端驗的是掃到的那一張
+    @State private var driverScan: (raw: String, at: Date)?
 
     enum Outcome {
         case success(CheckinResult)
@@ -62,6 +64,72 @@ struct CheckinSheet: View {
     }
 
     @ViewBuilder private var scannerSection: some View {
+        if session.checkinMode == .driver {
+            passSection
+        } else {
+            stationSection
+        }
+    }
+
+    // MARK: D33 出示乘車碼給司機掃
+
+    @ViewBuilder private var passSection: some View {
+        if let stage = service.expectedStage(participation) {
+            let stop = service.stopName(stage == .depart ? mission.startStopSeq : mission.endStopSeq)
+            VStack(alignment: .leading, spacing: Space.xs) {
+                Text("請司機掃這個乘車碼").font(.title3.bold())
+                Text(stage == .depart ? "在「\(stop)」上車時出示" : "在「\(stop)」下車時出示，驗證後旅綠幣就會入帳")
+                    .font(.subheadline).foregroundStyle(.secondary)
+            }
+            // 司機已經「掃到」就收起大張的碼，確認按鈕才不會被擠到畫面外
+            if driverScan == nil {
+                TimelineView(.periodic(from: .now, by: 1)) { ctx in
+                    if let token = service.boardingPassPayload(for: participation, now: ctx.date) {
+                        let t = Int(ctx.date.timeIntervalSince1970)
+                        VStack(spacing: Space.s) {
+                            QRCodeView(text: token)
+                                .frame(maxWidth: 260)
+                                .accessibilityIdentifier("boarding-pass-qr")
+                            Text("\(TokenSigner.rotation - t % TokenSigner.rotation) 秒後換新碼，截圖無效")
+                                .font(.caption).monospacedDigit().foregroundStyle(.secondary)
+                        }
+                        .frame(maxWidth: .infinity)
+                    }
+                }
+            }
+            if session.showDemoTools {
+                driverDemo
+            }
+        }
+    }
+
+    /// 只有一支手機展示時，在旅客畫面上直接開司機端那一塊；也可以切到「司機」身分看完整的司機畫面
+    @ViewBuilder private var driverDemo: some View {
+        VStack(alignment: .leading, spacing: Space.m) {
+            Text("司機端（展示用）").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
+            if let scan = driverScan {
+                DriverConfirmPanel(raw: scan.raw, scannedAt: scan.at, driverID: Self.driverAccount.id) { r in
+                    withAnimation { outcome = .success(r) }
+                }
+            } else {
+                Button {
+                    if let raw = service.boardingPassPayload(for: participation) { driverScan = (raw, .now) }
+                } label: {
+                    Label("模擬司機掃描", systemImage: "qrcode.viewfinder")
+                }
+                .buttonStyle(.secondaryAction)
+                .accessibilityIdentifier("demo-driver-scan")
+                Button("切換到「\(Self.driverAccount.name)」驗票") { session.account = Self.driverAccount }
+                    .font(.subheadline)
+            }
+        }
+        .padding(Space.m)
+        .background(Color.inset, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+    }
+
+    private static let driverAccount = DemoAccounts.all.first { $0.role == .driver }!
+
+    @ViewBuilder private var stationSection: some View {
         if let stage = service.expectedStage(participation) {
             let seq = stage == .depart ? mission.startStopSeq : mission.endStopSeq
             VStack(alignment: .leading, spacing: Space.xs) {
@@ -196,6 +264,7 @@ struct SuccessPanel: View {
     /// 參數是旅客直接點選的品項 id；nil 代表只是關閉或看全部
     var onContinue: (String?) -> Void
     @Environment(\.modelContext) private var context
+    @Environment(Session.self) private var session
     @State private var pop = false
 
     var body: some View {
@@ -258,7 +327,7 @@ struct SuccessPanel: View {
                 .accessibilityIdentifier("completion-return-trip")
             } else {
                 Text("出發驗證成功").font(.title.bold())
-                Text("抵達\(service.stopName(mission.endStopSeq))後，再掃一次站牌就能領 \(reward) 枚")
+                Text(CheckinCopy(mode: session.checkinMode).departDone(stop: service.stopName(mission.endStopSeq), reward: reward))
                     .font(.subheadline).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 Button("好，出發！") { onContinue(nil) }
                     .buttonStyle(.primary)

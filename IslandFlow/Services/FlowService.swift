@@ -259,13 +259,7 @@ final class FlowService {
             guard token.stop == m.startStopSeq else {
                 throw FlowError.msg("這是「\(stopName(token.stop))」的碼，出發驗證要在「\(startName)」掃描")
             }
-            let r = rules()
-            if r.enforceSchedule, let dep = departureDate(trip) {
-                let open = dep.addingTimeInterval(-15 * 60), close = dep.addingTimeInterval(30 * 60)
-                guard now() >= open && now() <= close else {
-                    throw FlowError.msg("不在出發驗證時間窗內（\(trip.departure) 前 15 分鐘到後 30 分鐘）")
-                }
-            }
+            try checkDepartWindow(trip)
         case .arrive:
             if token.stop == m.startStopSeq {
                 throw FlowError.msg("重複掃描：出發驗證已完成，請在抵達「\(endName)」後掃描到站碼")
@@ -293,13 +287,29 @@ final class FlowService {
             }
         }
 
+        return try recordCheckin(p, mission: m, stage: stage, stopSeq: token.stop, nonce: token.nonce, method: usedMethod,
+                                 location: location, distance: distance, actor: p.userID, detail: "方式：\(usedMethod)")
+    }
+
+    private func checkDepartWindow(_ trip: BusTrip) throws {
+        guard rules().enforceSchedule, let dep = departureDate(trip) else { return }
+        let open = dep.addingTimeInterval(-15 * 60), close = dep.addingTimeInterval(30 * 60)
+        guard now() >= open && now() <= close else {
+            throw FlowError.msg("不在出發驗證時間窗內（\(trip.departure) 前 15 分鐘到後 30 分鐘）")
+        }
+    }
+
+    /// 站牌碼與司機掃碼兩條路共用：同一階段只成功一次、到站才入帳
+    private func recordCheckin(_ p: Participation, mission m: Mission, stage: CheckinStage, stopSeq: Int, nonce: String,
+                               method: String, location: Location?, distance: Double?,
+                               actor: String, detail: String) throws -> CheckinResult {
         let key = "\(p.id)|\(stage.rawValue)"
         let existing = try context.fetchCount(FetchDescriptor<Checkin>(predicate: #Predicate { $0.key == key }))
         guard existing == 0 else { throw FlowError.msg("重複掃描：\(stage.label)已經完成過") }
 
         let t = now()
-        context.insert(Checkin(participationID: p.id, stage: stage, stopSeq: token.stop, tokenNonce: token.nonce,
-                               method: usedMethod, lat: location?.lat, lon: location?.lon, distanceMeters: distance,
+        context.insert(Checkin(participationID: p.id, stage: stage, stopSeq: stopSeq, tokenNonce: nonce,
+                               method: method, lat: location?.lat, lon: location?.lon, distanceMeters: distance,
                                verifiedAt: t))
         var awarded: Int?
         switch stage {
@@ -311,9 +321,94 @@ final class FlowService {
             p.completedAt = t
             awarded = try award(p, missionTitle: m.title)
         }
-        audit(p.userID, "checkin_\(stage.rawValue)", "participation", p.id, "方式：\(usedMethod)")
+        audit(actor, "checkin_\(stage.rawValue)", "participation", p.id, detail)
         try context.save()
-        return CheckinResult(stage: stage, stopName: stage == .depart ? startName : endName, coinsAwarded: awarded)
+        return CheckinResult(stage: stage, stopName: stopName(stopSeq), coinsAwarded: awarded)
+    }
+
+    // MARK: D33 司機掃旅客乘車碼
+
+    /// 展示版沒有票務系統可以查，只接受這組序號；正式版改向售票通路或票證公司查驗
+    static let demoTicketSerial = "20261107"
+    /// 司機掃到碼之後還要輸入購票序號，給一點打字時間；掃描當下碼必須有效
+    static let boardingConfirmWindow: TimeInterval = 300
+
+    struct BoardingPreview {
+        var pass: BoardingPass
+        var participation: Participation
+        var mission: Mission
+        var stage: CheckinStage
+        var passengerName: String
+        var stopName: String
+        var departure: String
+    }
+
+    /// 旅客出示的乘車碼。階段在產生當下決定，所以上車後舊的碼拿去下車驗票會被擋
+    func boardingPassPayload(for p: Participation, now at: Date? = nil) -> String? {
+        guard let stage = expectedStage(p), let m = mission(p.missionID) else { return nil }
+        return TokenSigner.boardingPass(pid: p.id, uid: p.userID, trip: m.tripID, stage: stage.rawValue,
+                                        ttl: rules().stationTokenTTL, now: at ?? now())
+    }
+
+    /// 司機掃到乘車碼後先看內容，確認乘客、班次與要驗哪一段
+    func boardingPreview(raw: String, scannedAt: Date? = nil) throws -> BoardingPreview {
+        let pass = try TokenSigner.verifyBoarding(raw, now: scannedAt ?? now())
+        let pid = pass.pid
+        guard let p = try context.fetch(FetchDescriptor<Participation>(predicate: #Predicate { $0.id == pid })).first,
+              p.userID == pass.uid else {
+            throw FlowError.msg("查無這位乘客的任務。展示版只支援同一支手機：乘車碼要在這支手機上產生")
+        }
+        guard let m = mission(p.missionID), let trip = trip(m.tripID) else { throw FlowError.msg("找不到任務資料") }
+        guard !trip.isCancelled else { throw FlowError.msg("班次已取消") }
+        guard let stage = expectedStage(p) else {
+            throw FlowError.msg("任務已完成，旅綠幣已入帳，不會重複發放")
+        }
+        guard pass.stage == stage.rawValue else {
+            throw FlowError.msg("這是上車用的乘車碼，乘客已經上車了。請乘客重新出示下車用的乘車碼")
+        }
+        if stage == .depart { try checkDepartWindow(trip) }
+        let seq = stage == .depart ? m.startStopSeq : m.endStopSeq
+        return BoardingPreview(pass: pass, participation: p, mission: m, stage: stage,
+                               passengerName: DemoAccounts.find(p.userID)?.name ?? "旅客",
+                               stopName: stopName(seq), departure: trip.departure)
+    }
+
+    /// 司機確認上車或下車。上車必須輸入購票序號；下車沿用上車時記下的序號
+    @discardableResult
+    func driverCheckIn(raw: String, ticketSerial: String, driverID: String, scannedAt: Date) throws -> CheckinResult {
+        do {
+            guard scannedAt <= now().addingTimeInterval(5),
+                  now().timeIntervalSince(scannedAt) <= Self.boardingConfirmWindow else {
+                throw FlowError.msg("掃描已超過 \(Int(Self.boardingConfirmWindow / 60)) 分鐘，請重新掃乘客的乘車碼")
+            }
+            let pv = try boardingPreview(raw: raw, scannedAt: scannedAt)
+            var detail = "方式：司機掃乘車碼"
+            if pv.stage == .depart {
+                let s = ticketSerial.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !s.isEmpty else { throw FlowError.msg("請輸入購票序號") }
+                guard s == Self.demoTicketSerial else {
+                    throw FlowError.msg("查無購票序號「\(s)」。展示版只接受展示序號 \(Self.demoTicketSerial)")
+                }
+                detail += "・購票序號 \(s)"
+            }
+            let seq = pv.stage == .depart ? pv.mission.startStopSeq : pv.mission.endStopSeq
+            return try recordCheckin(pv.participation, mission: pv.mission, stage: pv.stage, stopSeq: seq,
+                                     nonce: pv.pass.nonce, method: "driver", location: nil, distance: nil,
+                                     actor: driverID, detail: detail)
+        } catch let e as FlowError {
+            audit(driverID, "checkin_rejected", "boarding", (try? TokenSigner.verifyBoarding(raw, now: scannedAt))?.pid ?? "unknown", e.message)
+            try? context.save()
+            throw e
+        }
+    }
+
+    /// 購票序號沒有自己的欄位（不改資料模型），從上車那筆稽核紀錄讀回來
+    func ticketSerial(participationID: String) -> String? {
+        let action = "checkin_depart"
+        let logs = (try? context.fetch(FetchDescriptor<AuditLog>(
+            predicate: #Predicate { $0.targetID == participationID && $0.action == action }))) ?? []
+        guard let detail = logs.first?.detail, let r = detail.range(of: "購票序號 ") else { return nil }
+        return String(detail[r.upperBound...])
     }
 
     /// 以參加紀錄 id 當帳本唯一鍵，就算這段被呼叫兩次也只會入帳一次
