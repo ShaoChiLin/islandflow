@@ -49,18 +49,17 @@ struct RedeemReceipt: Codable, Equatable {
     var exp: Int
 }
 
-/// 乘車碼（D33）：旅客出示、司機掃描。綁定參加紀錄、旅客、班次與這次要驗的階段；
-/// 購票序號不放進碼裡，由司機掃完後輸入，旅客就沒辦法自己把序號簽進去。
+/// 票券 QR（D34 取代 D33 的動態乘車碼）：模擬台灣好行電子票券上的 QR Code。
+/// 旅客先輸入購票序號，App 找出這張票券並顯示它的 QR，上下車都出示同一張、不會換碼。
+/// 真實的票券 QR 由售票通路發行，展示版用自己的簽章模擬，綁定序號、參加紀錄、旅客與班次。
 struct BoardingPass: Codable, Equatable {
-    var v = 1
+    var v = 2
     var p = "boarding"
+    var serial: String
     var pid: String
     var uid: String
     var trip: String
-    var stage: String
-    var iat: Int
     var exp: Int
-    var nonce: String
 }
 
 enum TokenError: LocalizedError, Equatable {
@@ -138,12 +137,9 @@ enum TokenSigner {
         return t
     }
 
-    /// 乘車碼和站牌碼一樣每 30 秒換一次，截圖轉傳很快就失效
-    static func boardingPass(pid: String, uid: String, trip: String, stage: String, ttl: Int, now: Date = .now) -> String {
-        let t = Int(now.timeIntervalSince1970)
-        let bucket = t - t % rotation
-        return sign(BoardingPass(pid: pid, uid: uid, trip: trip, stage: stage, iat: bucket, exp: bucket + ttl,
-                                 nonce: "\(pid)-\(stage)-\(bucket)"))
+    /// 內容固定就產生同一張碼，像紙本或電子票券一樣整天不變
+    static func boardingPass(serial: String, pid: String, uid: String, trip: String, exp: Int) -> String {
+        sign(BoardingPass(serial: serial, pid: pid, uid: uid, trip: trip, exp: exp))
     }
 
     /// 給商家手動輸入用的 6 位數短碼。由金鑰推導而不是亂數，資料庫只需存雜湊。

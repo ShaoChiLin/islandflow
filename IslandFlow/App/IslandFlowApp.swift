@@ -314,7 +314,7 @@ struct DemoMenuSheet: View {
                         Label("掃碼頁顯示「模擬掃描」", systemImage: "qrcode")
                     }
                     Toggle(isOn: driverMode) {
-                        Label("上下車由司機掃乘車碼", systemImage: "bus")
+                        Label("上下車由司機掃票券 QR", systemImage: "bus")
                     }
                     .accessibilityIdentifier("checkin-mode-toggle")
                     Button {
@@ -331,7 +331,7 @@ struct DemoMenuSheet: View {
                 } header: {
                     Text("展示控制")
                 } footer: {
-                    Text("關掉「司機掃乘車碼」就改回旅客掃站牌動態碼，兩支手機展示時用：一支當站牌、一支當旅客。")
+                    Text("關掉「司機掃票券 QR」就改回旅客掃站牌動態碼，兩支手機展示時用：一支當站牌、一支當旅客。")
                 }
             }
             .navigationTitle("展示選單")

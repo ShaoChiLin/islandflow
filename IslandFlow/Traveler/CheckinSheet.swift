@@ -16,8 +16,13 @@ struct CheckinSheet: View {
     @State private var lastRaw: String?
     @State private var lastMethod = "camera"
     @State private var locator = LocationProvider()
-    /// 「模擬司機掃描」按下當時的乘車碼；之後畫面上的碼會繼續換新，司機端驗的是掃到的那一張
-    @State private var driverScan: (raw: String, at: Date)?
+    /// 「模擬司機掃描」掃到的票券 QR
+    @State private var driverScan: String?
+    @State private var serial = ""
+    @State private var serialError: String?
+    /// 序號記在稽核紀錄，畫面沒有 @Query 盯著；綁定成功後靠這個值讓票券 QR 一定換上來
+    @State private var ticketRefresh = 0
+    @FocusState private var serialFocused: Bool
 
     enum Outcome {
         case success(CheckinResult)
@@ -71,49 +76,104 @@ struct CheckinSheet: View {
         }
     }
 
-    // MARK: D33 出示乘車碼給司機掃
+    // MARK: D34 輸入購票序號 → 出示票券 QR 給司機掃
 
     @ViewBuilder private var passSection: some View {
+        let _ = ticketRefresh
         if let stage = service.expectedStage(participation) {
-            let stop = service.stopName(stage == .depart ? mission.startStopSeq : mission.endStopSeq)
-            VStack(alignment: .leading, spacing: Space.xs) {
-                Text("請司機掃這個乘車碼").font(.title3.bold())
-                Text(stage == .depart ? "在「\(stop)」上車時出示" : "在「\(stop)」下車時出示，驗證後旅綠幣就會入帳")
-                    .font(.subheadline).foregroundStyle(.secondary)
-            }
-            // 司機已經「掃到」就收起大張的碼，確認按鈕才不會被擠到畫面外
-            if driverScan == nil {
-                TimelineView(.periodic(from: .now, by: 1)) { ctx in
-                    if let token = service.boardingPassPayload(for: participation, now: ctx.date) {
-                        let t = Int(ctx.date.timeIntervalSince1970)
-                        VStack(spacing: Space.s) {
-                            QRCodeView(text: token)
-                                .frame(maxWidth: 260)
-                                .accessibilityIdentifier("boarding-pass-qr")
-                            Text("\(TokenSigner.rotation - t % TokenSigner.rotation) 秒後換新碼，截圖無效")
-                                .font(.caption).monospacedDigit().foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                    }
+            if let token = service.boardingPassPayload(for: participation),
+               let ticket = service.ticketSerial(participationID: participation.id) {
+                let stop = service.stopName(stage == .depart ? mission.startStopSeq : mission.endStopSeq)
+                VStack(alignment: .leading, spacing: Space.xs) {
+                    Text("請司機掃這張票券的 QR Code").font(.title3.bold())
+                    Text(stage == .depart ? "在「\(stop)」上車時出示" : "在「\(stop)」下車時再出示一次，驗證後旅綠幣就會入帳")
+                        .font(.subheadline).foregroundStyle(.secondary)
                 }
-            }
-            if session.showDemoTools {
-                driverDemo
+                // 司機已經「掃到」就收起大張的碼，確認按鈕才不會被擠到畫面外
+                if driverScan == nil {
+                    ticketCard(token: token, serial: ticket)
+                }
+                if session.showDemoTools {
+                    driverDemo(token: token)
+                }
+            } else {
+                ticketEntry
             }
         }
     }
 
+    private func ticketCard(token: String, serial: String) -> some View {
+        VStack(spacing: Space.s) {
+            Label("台灣好行電子票券（模擬）", systemImage: "ticket").font(.subheadline.weight(.semibold))
+            QRCodeView(text: token)
+                .frame(maxWidth: 240)
+                .accessibilityIdentifier("boarding-pass-qr")
+            Text("序號 \(serial)").font(.subheadline.monospaced())
+                .accessibilityIdentifier("ticket-serial-shown")
+            Text("上車、下車都出示這一張。展示版的 QR 由 App 模擬；正式版直接使用售票通路發的電子票券 QR。")
+                .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(Space.m)
+        .background(Color.inset, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+    }
+
+    /// 先輸入購票序號，App 才找得到這張票券的 QR
+    @ViewBuilder private var ticketEntry: some View {
+        VStack(alignment: .leading, spacing: Space.xs) {
+            Text("輸入電子票券序號").font(.title3.bold())
+            Text("輸入購票時取得的台灣好行電子票券序號，App 會找出這張票的 QR Code，上車時出示給司機掃。")
+                .font(.subheadline).foregroundStyle(.secondary)
+        }
+        VStack(alignment: .leading, spacing: Space.s) {
+            TextField("購票序號", text: $serial)
+                .keyboardType(.asciiCapable)
+                .textInputAutocapitalization(.characters)
+                .autocorrectionDisabled()
+                .font(.title3.monospaced())
+                .textFieldStyle(.roundedBorder)
+                .focused($serialFocused)
+                .onChange(of: serial) { serialError = nil }
+                .accessibilityIdentifier("ticket-serial")
+            if session.showDemoTools {
+                Button("填入展示序號 \(FlowService.demoTicketSerial)") { serial = FlowService.demoTicketSerial }
+                    .font(.subheadline)
+                    .accessibilityIdentifier("ticket-fill-demo")
+            }
+            Text("展示版沒有串接票務系統，只接受展示序號 \(FlowService.demoTicketSerial)。")
+                .font(.caption).foregroundStyle(.secondary)
+        }
+        if let serialError { ErrorBanner(message: serialError) }
+        Button {
+            serialFocused = false
+            do {
+                try service.bindTicket(serial: serial, participation: participation)
+                ticketRefresh += 1
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            } catch {
+                serialError = error.localizedDescription
+                UINotificationFeedbackGenerator().notificationOccurred(.error)
+            }
+        } label: {
+            Label("顯示票券 QR Code", systemImage: "qrcode")
+        }
+        .buttonStyle(.primary)
+        .accessibilityIdentifier("ticket-show")
+        Text("還沒買票？").font(.subheadline.weight(.semibold)).padding(.top, Space.s)
+        BuyTicketLink()
+    }
+
     /// 只有一支手機展示時，在旅客畫面上直接開司機端那一塊；也可以切到「司機」身分看完整的司機畫面
-    @ViewBuilder private var driverDemo: some View {
+    private func driverDemo(token: String) -> some View {
         VStack(alignment: .leading, spacing: Space.m) {
             Text("司機端（展示用）").font(.caption2.weight(.semibold)).foregroundStyle(.secondary)
             if let scan = driverScan {
-                DriverConfirmPanel(raw: scan.raw, scannedAt: scan.at, driverID: Self.driverAccount.id) { r in
+                DriverConfirmPanel(raw: scan, driverID: Self.driverAccount.id) { r in
                     withAnimation { outcome = .success(r) }
                 }
             } else {
                 Button {
-                    if let raw = service.boardingPassPayload(for: participation) { driverScan = (raw, .now) }
+                    driverScan = token
                 } label: {
                     Label("模擬司機掃描", systemImage: "qrcode.viewfinder")
                 }
