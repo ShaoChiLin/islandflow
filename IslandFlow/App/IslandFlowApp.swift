@@ -110,6 +110,7 @@ struct RootView: View {
             } else {
                 switch session.account.role {
                 case .traveler: TravelerRoot(account: session.account)
+                case .driver: DriverRoot(account: session.account)
                 case .merchant: MerchantRoot(account: session.account)
                 case .admin: AdminRoot(account: session.account)
                 }
@@ -145,7 +146,7 @@ struct WelcomeView: View {
 
             VStack(alignment: .leading, spacing: Space.m) {
                 WelcomeStep(icon: "bus.fill", text: "選一班比較空的車，獎勵更多")
-                WelcomeStep(icon: "qrcode.viewfinder", text: "上車、下車各掃一次站牌")
+                WelcomeStep(icon: "qrcode.viewfinder", text: "上車、下車各驗證一次")
                 WelcomeStep(icon: "basket.fill", text: "到沿線小農店家換好物")
             }
             // 下方留白先給旅綠驢，上方 Spacer 拿剩下的；到上限就不再長大
@@ -210,7 +211,7 @@ struct AccountMenu: View {
 
     var body: some View {
         Menu {
-            ForEach([Role.traveler, .merchant, .admin], id: \.self) { role in
+            ForEach(Role.menuOrder, id: \.self) { role in
                 // 用 Toggle 打勾而不用內嵌 Picker：Picker 會吃掉 Section 標題，評審就看不到角色名
                 Section(role.label) {
                     ForEach(DemoAccounts.all.filter { $0.role == role }) { a in
@@ -264,7 +265,7 @@ struct DemoMenuSheet: View {
                 } footer: {
                     Text("競賽展示用。正式版的一般民眾不會有「切換身分」與這個選單。")
                 }
-                ForEach([Role.traveler, .merchant, .admin], id: \.self) { role in
+                ForEach(Role.menuOrder, id: \.self) { role in
                     Section("切換為\(role.label)") {
                         ForEach(DemoAccounts.all.filter { $0.role == role }) { a in
                             Button {
@@ -303,7 +304,7 @@ struct DemoMenuSheet: View {
                 } footer: {
                     Text("只影響首頁判斷哪班還沒發車；掃碼、兌換碼與紀錄仍用實際時間。下午上台設 09:30，首推就是 10:40。")
                 }
-                Section("展示控制") {
+                Section {
                     NavigationLink {
                         TripLoadEditor().navigationTitle("班次載客率")
                     } label: {
@@ -312,6 +313,10 @@ struct DemoMenuSheet: View {
                     Toggle(isOn: $session.showDemoTools) {
                         Label("掃碼頁顯示「模擬掃描」", systemImage: "qrcode")
                     }
+                    Toggle(isOn: driverMode) {
+                        Label("上下車由司機掃乘車碼", systemImage: "bus")
+                    }
+                    .accessibilityIdentifier("checkin-mode-toggle")
                     Button {
                         session.hasOnboarded = false
                         dismiss()
@@ -323,6 +328,10 @@ struct DemoMenuSheet: View {
                     } label: {
                         Label("重置示範資料", systemImage: "arrow.counterclockwise")
                     }
+                } header: {
+                    Text("展示控制")
+                } footer: {
+                    Text("關掉「司機掃乘車碼」就改回旅客掃站牌動態碼，兩支手機展示時用：一支當站牌、一支當旅客。")
                 }
             }
             .navigationTitle("展示選單")
@@ -337,6 +346,10 @@ struct DemoMenuSheet: View {
                 }
             }
         }
+    }
+
+    private var driverMode: Binding<Bool> {
+        Binding { session.checkinMode == .driver } set: { session.checkinMode = $0 ? .driver : .station }
     }
 
     private var fixedTimeOn: Binding<Bool> {

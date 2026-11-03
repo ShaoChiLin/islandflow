@@ -48,11 +48,11 @@ enum SeedData {
         let missionA = Mission(id: "M-A", tripID: "T1040", title: "竹子湖小農早市任務",
                                subtitle: "搭離峰班次上山，到湖田小農市集換當季高冷蔬菜",
                                startStopSeq: 1, endStopSeq: 9, capacity: 30,
-                               notes: "請在捷運北投站站牌掃描出發碼，抵達竹子湖站牌後掃描到站碼。")
+                               notes: "在捷運北投站上車、竹子湖下車時各驗證一次。")
         let missionB = Mission(id: "M-B", tripID: "T1310", title: "陽明書屋山嵐茶席任務",
                                subtitle: "避開竹子湖人潮，到陽明書屋喝一壺山茶",
                                startStopSeq: 1, endStopSeq: 8, capacity: 25,
-                               notes: "陽明書屋為本期指定分流站點。請在捷運北投站掃描出發碼，抵達陽明書屋後掃描到站碼。")
+                               notes: "陽明書屋為本期指定分流站點。在捷運北投站上車、陽明書屋下車時各驗證一次。")
         context.insert(missionA)
         context.insert(missionB)
 

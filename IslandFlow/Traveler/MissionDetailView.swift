@@ -12,6 +12,7 @@ struct MissionDetailView: View {
     let account: DemoAccount
     @Environment(\.modelContext) private var context
     @Environment(TravelerRouter.self) private var router
+    @Environment(Session.self) private var session
     @Query private var parts: [Participation]
     @Query private var trips: [BusTrip]
     @Query private var rules: [RuleConfig]
@@ -117,11 +118,11 @@ struct MissionDetailView: View {
         let coins = participation?.rewardAmount ?? service.reward(for: mission).coins
         return Card {
             Text(participation == nil ? "加入後三個步驟" : "任務進度").font(.headline)
-            StepRow(n: 1, title: "在「\(from)」掃出發碼",
-                    detail: participation?.departedAt.map { "已完成 \(Fmt.time($0))" } ?? "搭 \(trip?.departure ?? "") 班次上車前掃站牌",
+            StepRow(n: 1, title: copy.stepTitle(.depart, stop: from),
+                    detail: participation?.departedAt.map { "已完成 \(Fmt.time($0))" } ?? copy.stepHint(.depart, departure: trip?.departure ?? ""),
                     done: s == .departed || s == .completed)
-            StepRow(n: 2, title: "到「\(to)」掃到站碼",
-                    detail: participation?.completedAt.map { "已完成 \(Fmt.time($0))" } ?? "下車後掃站牌",
+            StepRow(n: 2, title: copy.stepTitle(.arrive, stop: to),
+                    detail: participation?.completedAt.map { "已完成 \(Fmt.time($0))" } ?? copy.stepHint(.arrive, departure: ""),
                     done: s == .completed)
             StepRow(n: 3, title: "領 \(coins) 枚，到店兌換",
                     detail: s == .completed ? "已入帳，可以去兌換了" : "兩次掃碼都完成就自動入帳",
@@ -189,7 +190,7 @@ struct MissionDetailView: View {
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Text("・今日剩 \(service.remaining(mission)) / \(mission.capacity) 個名額")
                     Text("・每人每天最多參加 \(service.rules().dailyMissionLimit) 個任務")
-                    Text("・站牌上的碼每 30 秒更新，請現場掃描")
+                    Text("・\(copy.ruleNote)")
                     Text("・旅綠幣不能買賣、轉讓或換現金，\(FlowService.campaignEnd.formatted(date: .abbreviated, time: .omitted)) 到期")
                     if !mission.notes.isEmpty { Text("・\(mission.notes)") }
                 }
@@ -208,9 +209,9 @@ struct MissionDetailView: View {
                 if let p = participation {
                     switch p.statusValue {
                     case .joined:
-                        Button { scanning = true } label: { Label("掃描出發碼", systemImage: "qrcode.viewfinder") }
+                        Button { scanning = true } label: { Label(copy.action(.depart), systemImage: "qrcode") }
                     case .departed:
-                        Button { scanning = true } label: { Label("掃描到站碼", systemImage: "qrcode.viewfinder") }
+                        Button { scanning = true } label: { Label(copy.action(.arrive), systemImage: "qrcode") }
                     case .completed:
                         Button { router.goRedeem(stop: mission.endStopSeq) } label: { Label("前往兌換", systemImage: "basket") }
                     }
@@ -225,6 +226,8 @@ struct MissionDetailView: View {
         }
         .background(.bar)
     }
+
+    private var copy: CheckinCopy { CheckinCopy(mode: session.checkinMode) }
 
     private func join() {
         error = nil

@@ -7,11 +7,14 @@ struct MyTripsView: View {
     let account: DemoAccount
     @Environment(\.modelContext) private var context
     @Environment(TravelerRouter.self) private var router
+    @Environment(Session.self) private var session
     @Query private var parts: [Participation]
     @Query private var missions: [Mission]
     @Query private var trips: [BusTrip]
     @State private var scanning: Participation?
     @State private var cancelling: Participation?
+
+    private var copy: CheckinCopy { CheckinCopy(mode: session.checkinMode) }
     @State private var cancelError: String?
 
     init(account: DemoAccount) {
@@ -105,13 +108,13 @@ struct MyTripsView: View {
             }
             Text("前往\(to)").font(.title2.bold())
             Text("\(dep) 從\(from)出發・\(m.title)").font(.subheadline).foregroundStyle(.secondary)
-            StepRow(n: 1, title: "在「\(from)」掃出發碼",
-                    detail: p.departedAt.map { "已完成 \(Fmt.time($0))" } ?? "上車前掃站牌", done: p.statusValue != .joined)
-            StepRow(n: 2, title: "到「\(to)」掃到站碼", detail: "下車後掃站牌", done: false)
+            StepRow(n: 1, title: copy.stepTitle(.depart, stop: from),
+                    detail: p.departedAt.map { "已完成 \(Fmt.time($0))" } ?? copy.stepHint(.depart, departure: dep), done: p.statusValue != .joined)
+            StepRow(n: 2, title: copy.stepTitle(.arrive, stop: to), detail: copy.stepHint(.arrive, departure: dep), done: false)
             Button {
                 scanning = p
             } label: {
-                Label(p.statusValue == .joined ? "掃描出發碼" : "掃描到站碼", systemImage: "qrcode.viewfinder")
+                Label(copy.action(p.statusValue == .joined ? .depart : .arrive), systemImage: "qrcode")
             }
             .buttonStyle(.primary)
             .accessibilityIdentifier("trip-primary-action")
@@ -124,7 +127,7 @@ struct MyTripsView: View {
                     .frame(maxWidth: .infinity, minHeight: 44)
                     .accessibilityIdentifier("trip-cancel")
             } else {
-                Text("已完成出發驗證，任務不能取消；抵達後記得掃到站碼。")
+                Text(copy.cannotCancelNote)
                     .font(.caption).foregroundStyle(.secondary)
                     .frame(maxWidth: .infinity)
                     .multilineTextAlignment(.center)

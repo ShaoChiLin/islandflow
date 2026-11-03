@@ -28,10 +28,27 @@ final class TravelerFlowUITests: XCTestCase {
         XCTAssertTrue(ok, "按鈕文字應為「\(label)」，實際是「\(element.label)」", file: file, line: line)
     }
 
+    /// 展示選單切回「旅客掃站牌碼」時，原本的流程照舊可用（D33 保留的備援）
+    func testStationModeCheckinStillWorks() {
+        let app = launch(["account=t-demo", "reset-demo", "demo-time=09:30", "checkin-mode=station"])
+        app.buttons["recommended-view-mission"].tap()
+        let primary = app.buttons["mission-primary-action"]
+        XCTAssertTrue(primary.waitForExistence(timeout: 5))
+        primary.tap()
+        waitForLabel(primary, "掃描出發碼")
+        primary.tap()
+        XCTAssertTrue(app.buttons["demo-scan-valid"].waitForExistence(timeout: 5))
+        app.buttons["demo-scan-valid"].tap()
+        XCTAssertTrue(app.buttons["checkin-continue"].waitForExistence(timeout: 5))
+        app.buttons["checkin-continue"].tap()
+        waitForLabel(primary, "掃描到站碼")
+    }
+
     /// 旅客：探索 → 加入 → 出發碼 → 到站碼 → 完成後兩次點擊拿到兌換 QR
     func testTravelerCompletesMissionAndGetsRedeemQR() {
         // demo-time 固定「現在」是 09:30：兩班都還沒發車，推薦才會固定是 10:40／100 枚
-        let app = launch(["account=t-demo", "reset-demo", "demo-time=09:30"])
+        // 驗證方式會記在 UserDefaults，別的測試切過站牌碼模式也不能影響這裡
+        let app = launch(["account=t-demo", "reset-demo", "demo-time=09:30", "checkin-mode=driver"])
         XCTAssertTrue(app.staticTexts["今天搭哪班上山？"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.descendants(matching: .any)["demo-mode-notice"].exists, "首頁要常駐示範模式提示")
         snap("01-探索")
@@ -43,20 +60,28 @@ final class TravelerFlowUITests: XCTestCase {
         snap("02-任務詳情")
 
         primary.tap()
-        waitForLabel(primary, "掃描出發碼")
+        // D33：預設由司機掃旅客的乘車碼，上車時司機要輸入購票序號
+        waitForLabel(primary, "出示上車乘車碼")
         primary.tap()
-        XCTAssertTrue(app.buttons["demo-scan-valid"].waitForExistence(timeout: 5))
-        snap("03-掃出發碼")
-        app.buttons["demo-scan-valid"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["boarding-pass-qr"].waitForExistence(timeout: 5))
+        snap("03-出示乘車碼")
+        app.buttons["demo-driver-scan"].tap()
+        let confirmBoarding = app.buttons["driver-confirm"]
+        XCTAssertTrue(confirmBoarding.waitForExistence(timeout: 5))
+        app.buttons["driver-fill-demo-serial"].tap()
+        snap("03b-司機輸入序號")
+        confirmBoarding.tap()
         XCTAssertTrue(app.buttons["checkin-continue"].waitForExistence(timeout: 5))
         // 出發成功畫面的標題不能提前變成「到站驗證」
         XCTAssertTrue(app.navigationBars["出發驗證完成"].exists)
         XCTAssertFalse(app.navigationBars["到站驗證"].exists)
         app.buttons["checkin-continue"].tap()
 
-        waitForLabel(primary, "掃描到站碼")
+        waitForLabel(primary, "出示下車乘車碼")
         primary.tap()
-        app.buttons["demo-scan-valid"].tap()
+        app.buttons["demo-driver-scan"].tap()
+        XCTAssertTrue(app.buttons["driver-confirm"].waitForExistence(timeout: 5))
+        app.buttons["driver-confirm"].tap()
         XCTAssertTrue(app.staticTexts["checkin-reward"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["checkin-reward"].label, "已獲得 100 枚")
         snap("04-任務完成")
