@@ -14,6 +14,9 @@ struct CheckinResult {
     var stage: CheckinStage
     var stopName: String
     var coinsAwarded: Int?
+
+    /// D35 起上車驗證就完成任務；舊的已出發紀錄則是到站才完成
+    var completesMission: Bool { coinsAwarded != nil || stage == .arrive }
 }
 
 struct RedemptionPreview: Identifiable {
@@ -254,7 +257,7 @@ final class FlowService {
         switch stage {
         case .depart:
             if token.stop == m.endStopSeq {
-                throw FlowError.msg("還沒完成出發驗證，不能直接完成任務。請先在「\(startName)」掃描出發碼")
+                throw FlowError.msg("這是終點「\(endName)」的碼，請在起點「\(startName)」上車時掃描")
             }
             guard token.stop == m.startStopSeq else {
                 throw FlowError.msg("這是「\(stopName(token.stop))」的碼，出發驗證要在「\(startName)」掃描")
@@ -272,17 +275,20 @@ final class FlowService {
         var distance: Double?
         var usedMethod = method
         let r = rules()
-        if stage == .arrive, r.requireLocation {
+        // D35 起上車驗證就入帳，定位檢查跟著移到這次驗證的站點（上車站）
+        if r.requireLocation {
+            let seq = stage == .depart ? m.startStopSeq : m.endStopSeq
+            let name = stopName(seq)
             if manualOverride {
                 usedMethod = "manual"
             } else {
-                guard let loc = location, let dest = stop(m.endStopSeq) else {
-                    throw FlowError(message: "無法取得定位，到站驗證需要確認你在「\(endName)」附近", kind: .location)
+                guard let loc = location, let target = stop(seq) else {
+                    throw FlowError(message: "無法取得定位，\(stage.label)需要確認你在「\(name)」附近", kind: .location)
                 }
-                let d = Geo.distanceMeters(lat1: loc.lat, lon1: loc.lon, lat2: dest.lat, lon2: dest.lon)
+                let d = Geo.distanceMeters(lat1: loc.lat, lon1: loc.lon, lat2: target.lat, lon2: target.lon)
                 distance = d
                 guard d <= r.locationRadius else {
-                    throw FlowError(message: "你距離「\(endName)」約 \(Int(d)) 公尺，超過允許的 \(Int(r.locationRadius)) 公尺", kind: .location)
+                    throw FlowError(message: "你距離「\(name)」約 \(Int(d)) 公尺，超過允許的 \(Int(r.locationRadius)) 公尺", kind: .location)
                 }
             }
         }
@@ -314,9 +320,13 @@ final class FlowService {
         var awarded: Int?
         switch stage {
         case .depart:
-            p.status = ParticipationStatus.departed.rawValue
+            // D35：上車驗證通過就完成任務、入帳，下車不用再掃
+            p.status = ParticipationStatus.completed.rawValue
             p.departedAt = t
+            p.completedAt = t
+            awarded = try award(p, missionTitle: m.title)
         case .arrive:
+            // 只剩 D35 之前已出發、還沒到站的舊紀錄會走這裡
             p.status = ParticipationStatus.completed.rawValue
             p.completedAt = t
             awarded = try award(p, missionTitle: m.title)
@@ -396,7 +406,7 @@ final class FlowService {
                                stopName: stopName(seq), departure: trip.departure)
     }
 
-    /// 司機確認上車或下車。同一張票券掃第一次是上車、第二次是下車，各只成功一次
+    /// 司機確認上車（D35 起上車就入帳；下車驗票只給 D35 之前已出發的舊紀錄）
     @discardableResult
     func driverCheckIn(raw: String, driverID: String) throws -> CheckinResult {
         do {

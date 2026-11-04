@@ -45,7 +45,7 @@ struct CheckinSheet: View {
                     switch outcome {
                     case .success(let r):
                         SuccessPanel(result: r, reward: participation.rewardAmount, mission: mission, account: account) { itemID in
-                            if r.stage == .arrive {
+                            if r.completesMission {
                                 router.goRedeem(stop: mission.endStopSeq, itemID: itemID)
                             }
                             dismiss()
@@ -86,7 +86,7 @@ struct CheckinSheet: View {
                 let stop = service.stopName(stage == .depart ? mission.startStopSeq : mission.endStopSeq)
                 VStack(alignment: .leading, spacing: Space.xs) {
                     Text("請司機掃這張票券的 QR Code").font(.title3.bold())
-                    Text(stage == .depart ? "在「\(stop)」上車時出示" : "在「\(stop)」下車時再出示一次，驗證後旅綠幣就會入帳")
+                    Text(stage == .depart ? "在「\(stop)」上車時出示，驗證通過就入帳" : "在「\(stop)」下車時出示，驗證後旅綠幣就會入帳")
                         .font(.subheadline).foregroundStyle(.secondary)
                 }
                 // 司機已經「掃到」就收起大張的碼，確認按鈕才不會被擠到畫面外
@@ -110,7 +110,7 @@ struct CheckinSheet: View {
                 .accessibilityIdentifier("boarding-pass-qr")
             Text("序號 \(serial)").font(.subheadline.monospaced())
                 .accessibilityIdentifier("ticket-serial-shown")
-            Text("上車、下車都出示這一張。展示版的 QR 由 App 模擬；正式版直接使用售票通路發的電子票券 QR。")
+            Text("上車時出示這一張給司機掃。展示版的 QR 由 App 模擬；正式版直接使用售票通路發的電子票券 QR。")
                 .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -194,7 +194,7 @@ struct CheckinSheet: View {
             let seq = stage == .depart ? mission.startStopSeq : mission.endStopSeq
             VStack(alignment: .leading, spacing: Space.xs) {
                 Text("對準「\(service.stopName(seq))」站牌上的 QR Code").font(.title3.bold())
-                Text(stage == .depart ? "上車前掃一次，確認你從這站出發" : "下車後掃一次，旅綠幣就會入帳")
+                Text(stage == .depart ? "上車前掃一次，驗證通過就入帳" : "下車後掃一次，旅綠幣就會入帳")
                     .font(.subheadline).foregroundStyle(.secondary)
             }
             QRScannerView { code in submit(code, method: "camera") }
@@ -228,7 +228,7 @@ struct CheckinSheet: View {
         working = true
         Task {
             var loc: FlowService.Location?
-            if service.rules().requireLocation, service.expectedStage(participation) == .arrive, !manual,
+            if service.rules().requireLocation, service.expectedStage(participation) != nil, !manual,
                let l = await locator.currentLocation() {
                 loc = .init(lat: l.coordinate.latitude, lon: l.coordinate.longitude)
             }
@@ -334,13 +334,13 @@ struct SuccessPanel: View {
         let stopName = service.stopName(mission.endStopSeq)
 
         VStack(spacing: Space.l) {
-            Image(systemName: result.stage == .arrive ? "leaf.circle.fill" : "checkmark.seal.fill")
+            Image(systemName: result.completesMission ? "leaf.circle.fill" : "checkmark.seal.fill")
                 .font(.system(size: 72))
-                .foregroundStyle(result.stage == .arrive ? Color.coin : Color.brand)
+                .foregroundStyle(result.completesMission ? Color.coin : Color.brand)
                 .scaleEffect(pop ? 1 : 0.4)
                 .animation(.spring(response: 0.4, dampingFraction: 0.5), value: pop)
 
-            if result.stage == .arrive {
+            if result.completesMission {
                 Text("已獲得 \(result.coinsAwarded ?? reward) 枚")
                     .font(.largeTitle.bold())
                     .accessibilityIdentifier("checkin-reward")

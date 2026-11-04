@@ -137,7 +137,7 @@ final class TravelUXIntegrationTests: XCTestCase {
         let (p, _) = try service.join(mission: m, user: "t-demo")
         _ = try service.checkIn(raw: service.currentStationToken(trip: m.tripID, stop: m.startStopSeq), participation: p, method: "demo")
         XCTAssertThrowsError(try service.leave(p, user: "t-demo"))
-        XCTAssertEqual(p.statusValue, .departed)
+        XCTAssertEqual(p.statusValue, .completed, "D35：上車驗證通過就完成")
     }
 
     func testSegmentEmissionIsDemoAndPositive() {

@@ -238,7 +238,7 @@ final class Participation {
 
 enum CheckinStage: String {
     case depart, arrive
-    var label: String { self == .depart ? "出發驗證" : "到站驗證" }
+    var label: String { self == .depart ? "上車驗證" : "到站驗證" }
 }
 
 @Model

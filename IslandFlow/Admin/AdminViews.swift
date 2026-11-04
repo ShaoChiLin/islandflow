@@ -199,7 +199,7 @@ private struct RulesForm: View {
                 Stepper("每人每日最多 \(rules.dailyMissionLimit) 個任務", value: $rules.dailyMissionLimit, in: 1...10)
                 Stepper("站牌碼有效 \(rules.stationTokenTTL) 秒", value: $rules.stationTokenTTL, in: 30...600, step: 30)
                 Stepper("兌換碼有效 \(rules.redeemTokenTTL / 60) 分鐘", value: $rules.redeemTokenTTL, in: 60...1800, step: 60)
-                Toggle("到站時檢查定位（半徑 \(Int(rules.locationRadius)) 公尺）", isOn: $rules.requireLocation)
+                Toggle("上車時檢查定位（半徑 \(Int(rules.locationRadius)) 公尺）", isOn: $rules.requireLocation)
                 Toggle("嚴格檢查發車時間窗", isOn: $rules.enforceSchedule)
             }
         }

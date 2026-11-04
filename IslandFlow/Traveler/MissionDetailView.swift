@@ -117,15 +117,13 @@ struct MissionDetailView: View {
         let s = participation?.statusValue
         let coins = participation?.rewardAmount ?? service.reward(for: mission).coins
         return Card {
-            Text(participation == nil ? "加入後三個步驟" : "任務進度").font(.headline)
+            // D35：上車驗證通過就入帳，下車不用掃，所以只剩兩步
+            Text(participation == nil ? "加入後兩個步驟" : "任務進度").font(.headline)
             StepRow(n: 1, title: copy.stepTitle(.depart, stop: from),
                     detail: participation?.departedAt.map { "已完成 \(Fmt.time($0))" } ?? copy.stepHint(.depart, departure: trip?.departure ?? ""),
                     done: s == .departed || s == .completed)
-            StepRow(n: 2, title: copy.stepTitle(.arrive, stop: to),
-                    detail: participation?.completedAt.map { "已完成 \(Fmt.time($0))" } ?? copy.stepHint(.arrive, departure: ""),
-                    done: s == .completed)
-            StepRow(n: 3, title: "領 \(coins) 枚，到店兌換",
-                    detail: s == .completed ? "已入帳，可以去兌換了" : "兩次掃碼都完成就自動入帳",
+            StepRow(n: 2, title: "領 \(coins) 枚，到「\(to)」兌換",
+                    detail: s == .completed ? "已入帳，可以去兌換了" : "上車驗證通過就自動入帳，下車不用掃",
                     done: s == .completed)
         }
     }
